@@ -1,413 +1,2044 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
-<title>Radar Meteorológico · DroneWeather</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<style>
-  *{margin:0;padding:0;box-sizing:border-box}
-  html,body{height:100%;font-family:'Space Grotesk',system-ui,sans-serif;background:#080F1A}
-  #map{position:absolute;inset:0;z-index:1}
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0"/>
+  <meta name="theme-color" content="#080F1A"/>
+  <title>DroneWeather v3.0 — Plataforma</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    html,body{height:100%;background:#080F1A}
+    body{font-family:'Space Grotesk',system-ui,sans-serif;color:#E2E8F0}
+    button:focus-visible{outline:2px solid #3B82F6;outline-offset:2px}
+    #root{min-height:100vh}
 
-  /* ── Barra de busca (flutuante, à direita) ── */
-  .topbar{position:absolute;top:10px;right:12px;left:auto;z-index:1000;padding:0;
-    width:34%;max-width:440px;min-width:280px;background:none;pointer-events:none}
-  .topbar .inner{display:flex;gap:6px;align-items:center;pointer-events:auto}
-  .search-wrap{flex:1;position:relative;min-width:0}
-  .search{display:flex;align-items:center;gap:6px;background:rgba(13,19,34,.95);
-    border:1px solid #2A3A5C;border-radius:10px;padding:7px 11px;min-width:0;
-    box-shadow:0 4px 16px rgba(0,0,0,.5)}
-  .search input{flex:1;background:transparent;border:none;color:#E8ECF4;
-    font-family:inherit;font-size:12px;outline:none;min-width:0}
-  .suggest{position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:1003;
-    background:#0D1322;border:1px solid #2A3A5C;border-radius:10px;overflow:hidden;
-    display:none;box-shadow:0 8px 28px rgba(0,0,0,.6)}
-  .suggest.open{display:block}
-  .suggest-item{padding:9px 12px;font-size:12px;color:#CBD5E1;cursor:pointer;
-    border-bottom:1px solid #151E30;line-height:1.3}
-  .suggest-item:last-child{border-bottom:none}
-  .suggest-item:hover,.suggest-item.active{background:#1E3A5F;color:#fff}
-  .suggest-item .sub{display:block;font-size:10px;color:#5B6B86;margin-top:1px}
-  .btn{border:none;border-radius:9px;background:#3B82F6;color:#fff;font-family:inherit;
-    font-size:12px;font-weight:600;padding:8px 11px;cursor:pointer;white-space:nowrap;flex-shrink:0;
-    box-shadow:0 4px 16px rgba(0,0,0,.5)}
-  .btn.ghost{background:rgba(13,19,34,.95);border:1px solid #2A3A5C;color:#94A3B8;font-size:14px;padding:8px 8px}
-  .btn.ghost:hover{color:#E8ECF4}
+    /* ── Dashboard responsivo ── */
+    /* Celular: 1 coluna empilhada (padrão). Desktop: grade que aproveita a tela. */
+    .meteo-grid{ display:flex; flex-direction:column; }
+    .meteo-grid > *{ margin-left:16px; margin-right:16px; }
 
-  /* ── Painel de camadas ── */
-  .controls{position:absolute;top:12px;left:12px;z-index:1000;
-    background:rgba(13,19,34,.95);border:1px solid #1A2336;border-radius:11px;
-    padding:10px 12px;min-width:170px;backdrop-filter:blur(6px)}
-  .lbl{font-size:8px;color:#5B6B86;text-transform:uppercase;letter-spacing:.07em;margin-bottom:5px}
-  .layer-toggle{display:flex;align-items:center;gap:7px;margin-top:5px;
-    cursor:pointer;font-size:11px;color:#CBD5E1;user-select:none;line-height:1.2}
-  .layer-toggle input{accent-color:#3B82F6;width:14px;height:14px;flex-shrink:0;margin:0}
-  .opacity-row{margin-top:9px}
-  .opacity-row input{width:100%;accent-color:#3B82F6;margin-top:3px}
-  .sep{height:1px;background:#1A2336;margin:9px -12px}
-  .map-btns{display:flex;gap:4px;margin-top:5px}
-  .map-btn{flex:1;background:#111827;border:1px solid #1A2336;color:#64748B;
-    font-size:8.5px;font-family:inherit;border-radius:6px;padding:5px 2px;cursor:pointer;line-height:1.25}
-  .map-btn.active{background:#1E3A5F;color:#60A5FA;border-color:#3B82F6}
 
-  /* ── Linha do tempo (animação) ── */
-  .timeline{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);z-index:1000;
-    background:rgba(13,19,34,.96);border:1px solid #2A3A5C;border-radius:13px;
-    padding:11px 16px;width:min(620px,92%);box-shadow:0 8px 28px rgba(0,0,0,.6);
-    backdrop-filter:blur(6px)}
-  .timeline-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
-  .tl-time{font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;color:#E8ECF4}
-  .tl-time .rel{font-size:10px;color:#5B6B86;font-weight:400;margin-left:7px}
-  .tl-play{border:none;background:#3B82F6;color:#fff;width:34px;height:34px;border-radius:9px;
-    cursor:pointer;font-size:15px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
-  .tl-play:hover{background:#2563EB}
-  .tl-slider{width:100%;accent-color:#3B82F6}
-  .tl-marks{display:flex;justify-content:space-between;font-size:9px;color:#5B6B86;margin-top:3px}
 
-  /* ── Legenda de precipitação ── */
-  .precip-legend{position:absolute;bottom:14px;right:12px;z-index:1000;
-    background:rgba(13,19,34,.95);border:1px solid #1A2336;border-radius:11px;
-    padding:9px 11px;font-size:9px;color:#94A3B8;backdrop-filter:blur(6px)}
-  .precip-legend .bar{width:14px;height:90px;border-radius:4px;margin:5px auto 4px;
-    background:linear-gradient(to top,#88ABDB,#5A7BC4,#7B5AB0,#C44A8F,#E8516B,#F5A623,#FFE14D)}
-  .precip-legend .ends{display:flex;flex-direction:column;justify-content:space-between;
-    height:90px;float:right;margin-left:4px;font-size:8px}
+    /* O topo (header/busca/abas) fica contido e centralizado em todas as abas. */
+    .dw-topo{ max-width:480px; margin:0 auto; }
 
-  /* ── Alerta de status ── */
-  .alert{position:absolute;top:14px;left:50%;transform:translateX(-50%);z-index:1000;
-    border-radius:12px;padding:9px 16px;font-size:12px;font-weight:600;text-align:center;
-    box-shadow:0 6px 28px rgba(0,0,0,.6);max-width:55%;transition:.2s;
-    background:#1E3A5F;color:#93C5FD;border:1px solid #3B82F655;pointer-events:none}
-  .alert.hide{opacity:0;pointer-events:none}
-  @media (max-width:640px){
-    .alert{top:12px;left:12px;right:auto;transform:none;max-width:60%;font-size:11px;text-align:left}
-    .controls{top:auto;bottom:120px;left:12px}
-    .precip-legend{bottom:120px}
-  }
+    @media (min-width: 900px){
+      /* Meteorologia e Janela: container contido em 560px */
+      .dw-shell.dw-meteo, .dw-shell.dw-janela{ max-width:560px !important; }
+      /* Espaço Aéreo e Radar: mapas ocupam a tela toda */
+      .dw-shell.dw-espaco, .dw-shell.dw-radar{ max-width:100% !important; }
+      /* O topo permanece contido em todas as abas */
+      .dw-topo{ max-width:560px; }
+    }
 
-  /* Leaflet overrides */
-  .leaflet-container{background:#0A0E1A}
-  .leaflet-popup-content-wrapper{background:#0D1322;color:#E8ECF4;border-radius:10px}
-  .leaflet-popup-tip{background:#0D1322}
-  .leaflet-bar a{background:#0D1322;color:#E8ECF4;border-color:#1A2336}
-  .leaflet-bar a:hover{background:#1A2336}
-</style>
+    /* Pares de cards (vento+previsão, trajetória+sol3d): empilhados (coluna única) */
+    .par-2col > *{ margin-left:16px; margin-right:16px; }
+
+    /* Aba Janela de Voo: cards empilhados (Trajetória em cima, Sol 3D embaixo) */
+    .janela-wrap{ padding:0 0 8px; }
+  </style>
 </head>
 <body>
-  <div id="map"></div>
+<div id="root"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js" crossorigin></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" crossorigin></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.25.6/babel.min.js" crossorigin></script>
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
 
-  <!-- Busca -->
-  <div class="topbar">
-    <div class="inner">
-      <div class="search-wrap">
-        <div class="search">
-          <span style="opacity:.45;flex-shrink:0;font-size:13px">🔍</span>
-          <input id="q" type="text" autocomplete="off" placeholder="Cidade ou coordenadas"/>
-        </div>
-        <div class="suggest" id="suggest"></div>
+// ════════════════════════════════════════════════════════════════════════════
+//  CHAVE DE API — Cole sua chave do Tomorrow.io aqui (https://app.tomorrow.io)
+//  Deixe "" (vazio) para usar apenas Open-Meteo.
+const TOMORROW_API_KEY = "UXdl8QJrHlIdEG0AdnjXQx72LYl8xmyl";
+//  ICAO de fallback caso a busca automática por aeroporto próximo falhe.
+//  O app detecta sozinho a estação METAR mais próxima da localização.
+const METAR_ICAO_FALLBACK = "SBDN";
+// ════════════════════════════════════════════════════════════════════════════
+
+// ── Utilitários ────────────────────────────────────────────────────────────────
+const Z2 = (n) => String(Math.floor(Math.abs(n))).padStart(2,"0");
+const toHM = (m) => `${Z2(m/60)}:${Z2(m%60)}`;
+const toMins = (d) => (d ? d.getHours()*60 + d.getMinutes() : 0);
+const parseLocal = (iso) => {
+  const [dt,tm] = iso.split("T");
+  const [y,mo,d] = dt.split("-");
+  const [h,mi] = tm.split(":");
+  return new Date(+y,+mo-1,+d,+h,+mi);
+};
+const compass = (deg) =>
+  ["N","NE","L","SE","S","SO","O","NO"][Math.round(deg/45)%8];
+
+// ── Posição solar astronômica (algoritmo NOAA) — offline ─────────────────────
+// Retorna azimute (0=N, horário), altitude e declinação em graus.
+function solarPosition(date, lat, lon){
+  const rad=Math.PI/180, deg=180/Math.PI;
+  const jd=(date.getTime()/86400000)+2440587.5;
+  const n=jd-2451545.0;
+  let L=(280.460+0.9856474*n)%360; if(L<0)L+=360;
+  let g=((357.528+0.9856003*n)%360)*rad;
+  const lambda=(L+1.915*Math.sin(g)+0.020*Math.sin(2*g))*rad;
+  const eps=(23.439-0.0000004*n)*rad;
+  const delta=Math.asin(Math.sin(eps)*Math.sin(lambda));
+  const alpha=Math.atan2(Math.cos(eps)*Math.sin(lambda),Math.cos(lambda));
+  const gmst=(280.46061837+360.98564736629*n)%360;
+  const lst=((gmst+lon)%360)*rad;
+  let H=lst-alpha;
+  while(H<-Math.PI)H+=2*Math.PI; while(H>Math.PI)H-=2*Math.PI;
+  const latR=lat*rad;
+  const alt=Math.asin(Math.sin(latR)*Math.sin(delta)+Math.cos(latR)*Math.cos(delta)*Math.cos(H));
+  let az=Math.atan2(-Math.sin(H),Math.tan(delta)*Math.cos(latR)-Math.sin(latR)*Math.cos(H));
+  az=(az*deg+360)%360;
+  return {azimuth:az, altitude:alt*deg, declination:delta*deg};
+}
+// azimute/altitude → vetor 3D no domo (raio R). +Z=Norte, +X=Leste, +Y=cima.
+function sunVec3D(THREE, azDeg, altDeg, R){
+  const az=azDeg*Math.PI/180, alt=Math.max(altDeg,-8)*Math.PI/180;
+  return new THREE.Vector3(
+    Math.sin(az)*Math.cos(alt)*R,
+    Math.sin(alt)*R,
+    Math.cos(az)*Math.cos(alt)*R
+  );
+}
+// Constrói o instante UTC correto p/ um "minuto do dia LOCAL" no fuso do alvo.
+// Corrige o bug de usar o fuso do navegador ao planejar para outra cidade.
+function localMinToDate(y, m, d, minutes, utcOffsetSec){
+  return new Date(Date.UTC(y, m-1, d) - utcOffsetSec*1000 + minutes*60000);
+}
+// Quebra uma sequência de pontos 3D quando o azimute "salta" (cruzamento do zênite),
+// retornando segmentos contínuos para não desenhar linhas atravessando o domo.
+function splitOnAzJump(samples){
+  // samples: [{az, v}] — devolve array de arrays de vetores
+  const segs = []; let cur = [];
+  for (let i=0; i<samples.length; i++){
+    if (i>0){
+      let dAz = Math.abs(samples[i].az - samples[i-1].az);
+      if (dAz > 180) dAz = 360 - dAz;
+      if (dAz > 90){ if (cur.length) segs.push(cur); cur = []; }  // salto → novo segmento
+    }
+    cur.push(samples[i].v);
+  }
+  if (cur.length) segs.push(cur);
+  return segs;
+}
+
+// Arco de declinação fixa (trajetória do sol num solstício/equinócio) p/ dada latitude
+function declArcPts(THREE, declDeg, lat, R){
+  const rad=Math.PI/180, deg=180/Math.PI, pts=[];
+  const latR=lat*rad, dR=declDeg*rad;
+  for(let Hd=-180; Hd<=180; Hd+=2){
+    const H=Hd*rad;
+    const alt=Math.asin(Math.sin(latR)*Math.sin(dR)+Math.cos(latR)*Math.cos(dR)*Math.cos(H));
+    if(alt < -1*rad) continue;
+    let az=Math.atan2(-Math.sin(H),Math.tan(dR)*Math.cos(latR)-Math.sin(latR)*Math.cos(H));
+    az=(az*deg+360)%360;
+    pts.push(sunVec3D(THREE, az, alt*deg, R));
+  }
+  return pts;
+}
+
+// ── Crepúsculo civil astronômico ─────────────────────────────────────────────
+// Retorna quantos minutos o crepúsculo civil dura antes do nascer / após o pôr
+function calcCivilTwilightOffset(date, lat) {
+  const toRad = (d) => d * Math.PI / 180;
+  const toDeg = (r) => r * 180 / Math.PI;
+  // Declinação solar precisa (Fourier de baixa ordem, erro < 0.2°)
+  const N = Math.floor((date - new Date(Date.UTC(date.getFullYear(),0,0))) / 86400000);
+  const g = toRad((357.529 + 0.98560028 * N) % 360);
+  const lam = toRad((280.459 + 0.98564736 * N + 1.915*Math.sin(g) + 0.020*Math.sin(2*g)) % 360);
+  const dec = Math.asin(Math.sin(toRad(23.439)) * Math.sin(lam));
+  const latR = toRad(lat);
+  // Ângulo horário (em minutos de tempo) para uma dada elevação do sol
+  const haMinutes = (elev) => {
+    const cosH = (Math.sin(toRad(elev)) - Math.sin(latR) * Math.sin(dec))
+                  / (Math.cos(latR) * Math.cos(dec));
+    if (cosH < -1) return Infinity;  // sol nunca atinge essa elevação (verão polar)
+    if (cosH > 1)  return null;       // sol nunca sobe tanto (inverno polar)
+    return toDeg(Math.acos(cosH)) * 4; // 1° de rotação = 4 min
+  };
+  const H0 = haMinutes(-0.833); // borda superior do sol no horizonte (com refração)
+  const Hc = haMinutes(-6);     // fim do crepúsculo civil (6° abaixo)
+  if (H0 == null || Hc == null) return 30;          // noite/dia polar → fallback
+  if (!isFinite(H0) || !isFinite(Hc)) return 40;    // crepúsculo prolongado
+  // duração do crepúsculo civil = diferença dos ângulos horários
+  return Math.max(12, Math.round(Hc - H0));
+}
+
+// ── Física: perfil logarítmico do vento ──────────────────────────────────────
+// Usa medições em 10m e 80m para extrapolar qualquer altura via lei logarítmica
+const windAtHeight = (v10, v80, h) => {
+  if (v10 == null || v80 == null || v10 <= 0) return v10 ?? 0;
+  const a = (v80 - v10) / (Math.log(80) - Math.log(10));
+  const b = v10 - a * Math.log(10);
+  return Math.max(0, a * Math.log(h) + b);
+};
+const gustAtHeight = (gust10, v10, vH) => {
+  if (!gust10 || !v10 || v10 <= 0 || vH == null) return gust10 ?? 0;
+  return Math.max(0, gust10 * (vH / v10));
+};
+
+// ── Classificações ─────────────────────────────────────────────────────────────
+const CL = {
+  good:{ color:"#22C55E", tag:"OK",      bg:"#14532D" },
+  warn:{ color:"#F59E0B", tag:"ATENÇÃO", bg:"#92400E" },
+  bad: { color:"#EF4444", tag:"RUIM",    bg:"#7F1D1D" },
+};
+const gradeWind   = (v) => v < 20 ? "good" : v < 35 ? "warn" : "bad";
+const gradePrecip = (v) => v < 20 ? "good" : v < 50 ? "warn" : "bad";
+const gradeVis    = (v) => v > 8  ? "good" : v > 3  ? "warn" : "bad";
+const gradeCloud  = (v) => v < 60 ? "good" : "warn";
+const gradeKp     = (v) => v==null||isNaN(v) ? "warn" : v < 4 ? "good" : v < 5 ? "warn" : "bad";
+// Classificação do vento em m/s para operações RPA a 120m AGL
+const gradeWindMs = (vMs) => vMs <= 10.0 ? "good" : vMs < 12.0 ? "warn" : "bad";
+const WIND_COL = { good:"#22C55E", warn:"#F97316", bad:"#EF4444" };
+const WIND_TAG = { good:"OK",      warn:"ATENÇÃO", bad:"RUIM"   };
+const WIND_BG  = { good:"#14532D", warn:"#7C2D12", bad:"#7F1D1D"};
+
+const worstOf     = (...gs) =>
+  gs.includes("bad") ? "bad" : gs.includes("warn") ? "warn" : "good";
+
+const BANNER = {
+  good:{ icon:"✅", text:"Boas condições para voo",  bg:"#14532D" },
+  warn:{ icon:"⚠️", text:"Condições moderadas",       bg:"#78350F" },
+  bad: { icon:"🚫", text:"Condições desfavoráveis",  bg:"#7F1D1D" },
+};
+
+// ── Thumb arrastável ──────────────────────────────────────────────────────────
+function Thumb({ pct, onDrag, minM=0, spanM=1440 }) {
+  const cap = (e) => { e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); };
+  const drg = (e) => {
+    if (!e.currentTarget.hasPointerCapture(e.pointerId)) return;
+    const t = e.currentTarget.closest("[data-track]");
+    if (!t) return;
+    const { left, width } = t.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (e.clientX - left) / width));
+    onDrag(Math.round((minM + ratio * spanM) / 5) * 5);
+  };
+  const rel = (e) => e.currentTarget.releasePointerCapture(e.pointerId);
+  return (
+    <div onPointerDown={cap} onPointerMove={drg} onPointerUp={rel} style={{
+      position:"absolute", left:`${pct}%`, top:"50%",
+      transform:"translate(-50%,-50%)", width:26, height:26,
+      borderRadius:"50%", background:"white", border:"3px solid #3B82F6",
+      boxShadow:"0 2px 8px rgba(0,0,0,.6)", cursor:"grab",
+      touchAction:"none", zIndex:10, userSelect:"none",
+    }}/>
+  );
+}
+
+// ── Bússola SVG com orientação do dispositivo ─────────────────────────────────
+function WindCompass({ windFromDeg, v120, deviceHeading, hasOrientation, onRequestPerm }) {
+  const SIZE = 154, cx = 77, cy = 77, r = 62;
+  const windToDeg = (windFromDeg + 180) % 360; // para onde o vento sopra
+
+  // Converte grau meteorológico (0=N, horário) para coordenadas SVG no círculo
+  const degToXY = (deg, radius) => {
+    const rad = (deg - 90) * Math.PI / 180;
+    return { x: cx + radius * Math.cos(rad), y: cy + radius * Math.sin(rad) };
+  };
+
+  const CARDINALS = [
+    { deg:0,   label:"N", north:true  },
+    { deg:90,  label:"L", north:false },
+    { deg:180, label:"S", north:false },
+    { deg:270, label:"O", north:false },
+  ];
+
+  // Seta: ponta aponta para onde o vento vai (windToDeg)
+  const TIP  = degToXY(windToDeg, r * 0.74);
+  const TAIL = degToXY(windToDeg + 180, r * 0.30);
+  const perp = (windToDeg + 90) * Math.PI / 180 - Math.PI/2;
+  const backPt = degToXY(windToDeg, r * 0.60);
+  const hw = 5.5;
+  const arrowHead = [
+    `${TIP.x},${TIP.y}`,
+    `${backPt.x + hw*Math.cos(perp)},${backPt.y + hw*Math.sin(perp)}`,
+    `${backPt.x - hw*Math.cos(perp)},${backPt.y - hw*Math.sin(perp)}`,
+  ].join(" ");
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:6 }}>
+      <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`}>
+        <defs>
+          <filter id="compassGlow">
+            <feGaussianBlur stdDeviation="3" result="b"/>
+            <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+
+        {/* Fundo */}
+        <circle cx={cx} cy={cy} r={r+10} fill="#060D18"/>
+        <circle cx={cx} cy={cy} r={r+2}  fill="none" stroke="#0F2035" strokeWidth={1}/>
+
+        {/* Rosa dos ventos — gira com o dispositivo */}
+        <g transform={`rotate(${-deviceHeading},${cx},${cy})`}>
+          <circle cx={cx} cy={cy} r={r} fill="none" stroke="#1A3A5C" strokeWidth={1.5}/>
+
+          {/* Ticks a cada 5° */}
+          {Array.from({length:72},(_,i) => {
+            const deg = i*5;
+            const isMain = deg%90===0;
+            const isSub  = deg%45===0;
+            const outerPt = degToXY(deg, r);
+            const innerPt = degToXY(deg, r-(isMain?10:isSub?7:3.5));
+            return (
+              <line key={deg}
+                x1={outerPt.x} y1={outerPt.y}
+                x2={innerPt.x} y2={innerPt.y}
+                stroke={deg===0?"#EF4444":"#1E3A5F"}
+                strokeWidth={isMain?1.5:isSub?1:0.6}/>
+            );
+          })}
+
+          {/* Letras cardinais */}
+          {CARDINALS.map(({deg,label,north}) => {
+            const pt = degToXY(deg, r-18);
+            return (
+              <text key={label} x={pt.x} y={pt.y}
+                textAnchor="middle" dominantBaseline="middle"
+                fill={north?"#EF4444":"#64748B"}
+                fontSize={north?11:9}
+                fontFamily="Space Grotesk" fontWeight={700}>
+                {label}
+              </text>
+            );
+          })}
+
+          {/* Seta Norte (vermelho) */}
+          {(() => {
+            const tip  = degToXY(0,   r-24);
+            const tail = degToXY(180, r-24);
+            return <polygon points={`${tip.x},${tip.y} ${cx-4},${cy} ${cx+4},${cy}`} fill="#EF4444" opacity={0.85}/>;
+          })()}
+          {(() => {
+            const tip  = degToXY(180, r-24);
+            return <polygon points={`${tip.x},${tip.y} ${cx-4},${cy} ${cx+4},${cy}`} fill="#334155"/>;
+          })()}
+        </g>
+
+        {/* Seta do vento — fixa no espaço da tela */}
+        <line x1={TAIL.x} y1={TAIL.y} x2={TIP.x} y2={TIP.y}
+          stroke="#3B82F6" strokeWidth={2.5} strokeLinecap="round"/>
+        <polygon points={arrowHead} fill="#3B82F6" filter="url(#compassGlow)"/>
+
+        {/* Centro */}
+        <circle cx={cx} cy={cy} r={18} fill="#0D1F35"/>
+        <text x={cx} y={cy-4} textAnchor="middle"
+          fill="#3B82F6" fontSize={11}
+          fontFamily="JetBrains Mono" fontWeight={700}>
+          {v120!=null ? (v120/3.6).toFixed(1) : "--"}
+        </text>
+        <text x={cx} y={cy+8} textAnchor="middle"
+          fill="#475569" fontSize={7} fontFamily="Space Grotesk">m/s</text>
+      </svg>
+
+      {/* Botão permissão iOS / status */}
+      {!hasOrientation && (
+        <button onClick={onRequestPerm} style={{
+          fontSize:9, padding:"3px 10px", borderRadius:12,
+          border:"1px solid #1E3A5F", background:"transparent",
+          color:"#475569", cursor:"pointer", fontFamily:"Space Grotesk",
+        }}>
+          🧭 Ativar bússola
+        </button>
+      )}
+      {hasOrientation && (
+        <span style={{ fontSize:9, color:"#22C55E" }}>🧭 Bússola ativa</span>
+      )}
+    </div>
+  );
+}
+
+// ── Níveis de vento (painel ao lado da bússola) v1.4 ──────────────────────────
+const fmtKmh = (v) => v != null ? Math.round(v)         : "—";
+const fmtMs  = (v) => v != null ? (v / 3.6).toFixed(1)  : "—";
+
+function WindLevels({ v120, gust120, windFromDeg }) {
+  const v120Ms   = v120    != null ? v120    / 3.6 : null;
+  const gust120Ms= gust120 != null ? gust120 / 3.6 : null;
+  const gV = gradeWindMs(v120Ms   ?? 0);
+  const gG = gradeWindMs(gust120Ms?? 0);
+  const isHighRisk = (v120Ms != null && v120Ms >= 12) || (gust120Ms != null && gust120Ms >= 12);
+
+  const rows = [
+    { label:"Vento Constante", sub:"120m AGL ✦", value:v120,    grade:gV },
+    { label:"Rajada",          sub:"120m AGL",   value:gust120, grade:gG },
+  ];
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", justifyContent:"center", gap:7, flex:1 }}>
+      <div style={{ color:"#475569", fontSize:9, textTransform:"uppercase", letterSpacing:"0.08em" }}>
+        Velocidade 120m AGL
       </div>
-      <button class="btn" id="goBtn">Ir</button>
-      <button class="btn ghost" id="gpsBtn" title="Localização GPS">📍</button>
+
+      {rows.map(({ label, sub, value, grade }) => (
+        <div key={label} style={{
+          padding:"8px 10px", borderRadius:8,
+          background:"#0F2040",
+          border:`1px solid ${WIND_COL[grade]}55`,
+        }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4 }}>
+            <span style={{ color:"#94A3B8", fontSize:10 }}>
+              {label} <span style={{ color:"#475569", fontSize:8 }}>{sub}</span>
+            </span>
+            <span style={{
+              fontSize:8, fontWeight:700, letterSpacing:"0.04em",
+              background:WIND_BG[grade]+"66", color:WIND_COL[grade],
+              padding:"1px 7px", borderRadius:10,
+            }}>{WIND_TAG[grade]}</span>
+          </div>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline" }}>
+            <span style={{ color:WIND_COL[grade], fontFamily:"JetBrains Mono", fontSize:19, fontWeight:700 }}>
+              {fmtKmh(value)}
+              <span style={{ fontSize:9, fontWeight:400, marginLeft:2, color:"#64748B" }}>km/h</span>
+            </span>
+            <span style={{ color:WIND_COL[grade], fontFamily:"JetBrains Mono", fontSize:19, fontWeight:700 }}>
+              {fmtMs(value)}
+              <span style={{ fontSize:9, fontWeight:400, marginLeft:2, color:"#64748B" }}>m/s</span>
+            </span>
+          </div>
+        </div>
+      ))}
+
+      {/* Alerta de alto risco operacional */}
+      {isHighRisk && (
+        <div style={{
+          padding:"8px 10px", borderRadius:8,
+          background:"#450A0A", border:"1.5px solid #EF4444",
+          textAlign:"center",
+        }}>
+          <div style={{ color:"#FCA5A5", fontSize:12, fontWeight:700, letterSpacing:"0.04em" }}>
+            ⛔ ALTO RISCO OPERACIONAL
+          </div>
+          <div style={{ color:"#F87171", fontSize:9, marginTop:2 }}>
+            Vento acima de 12 m/s — voo não recomendado
+          </div>
+        </div>
+      )}
+
+      <div style={{ color:"#334155", fontSize:9 }}>
+        Vento de {compass(windFromDeg??0)} ({Math.round(windFromDeg??0)}°)
+      </div>
     </div>
-  </div>
+  );
+}
 
-  <!-- Painel de camadas -->
-  <div class="controls">
-    <div class="lbl">Camadas</div>
-    <label class="layer-toggle"><input type="checkbox" id="tgPrecip" checked/>🌧️ Precipitação (radar)</label>
-    <label class="layer-toggle"><input type="checkbox" id="tgClouds"/>☁️ Nuvens</label>
-    <label class="layer-toggle"><input type="checkbox" id="tgTemp"/>🌡️ Temperatura</label>
-    <label class="layer-toggle"><input type="checkbox" id="tgLocal" checked/>📍 Seu local</label>
-    <div class="opacity-row">
-      <div class="lbl">Opacidade da chuva</div>
-      <input type="range" id="opacity" min="0" max="100" value="80"/>
+// ── Arco Solar SVG (v1.1 inalterado) ─────────────────────────────────────────
+function SunArc({ sr, ss, now, fs, fe }) {
+  if (!sr||!ss) return null;
+  const W=340, H=200, cx=W/2, cy=H-18, r=142;
+  const srM=toMins(sr), ssM=toMins(ss), nowM=toMins(now);
+  const peakM = Math.round((srM+ssM)/2);
+  const STD=120, stdL=Math.max(srM,peakM-STD), stdR=Math.min(ssM,peakM+STD);
+  const toDeg=(m)=>(1-Math.max(0,Math.min(1,(m-srM)/(ssM-srM))))*180;
+  const toXY=(deg)=>{ const rad=deg*Math.PI/180; return{x:cx+r*Math.cos(rad),y:cy-r*Math.sin(rad)}; };
+  const srPt=toXY(180), ssPt=toXY(0), peakPt=toXY(90);
+  const stdLPt=toXY(toDeg(stdL)), stdRPt=toXY(toDeg(stdR));
+  const inDay=nowM>=srM&&nowM<=ssM;
+  const sunPt=toXY(Math.max(0,Math.min(180,toDeg(nowM))));
+  // Anti-sobreposição: se o sol atual estiver a <60min do pico, separar os rótulos.
+  // Pico sobe (labels acima), horário atual desce (abaixo do sol).
+  const nearPeak = inDay && Math.abs(nowM - peakM) < 60;
+  const userStart = Math.max(fs, srM);
+  const userEnd   = Math.min(fe, ssM);
+  const fwL=toXY(toDeg(userStart)), fwR=toXY(toDeg(userEnd));
+  const showFw=fs<ssM&&fe>srM;
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{width:"100%",display:"block"}}>
+      <defs>
+        <radialGradient id="skyBg2" cx="50%" cy="95%" r="100%">
+          <stop offset="0%"   stopColor="#1A3A5C"/>
+          <stop offset="100%" stopColor="#080F1A"/>
+        </radialGradient>
+        <filter id="glow2" x="-100%" y="-100%" width="300%" height="300%">
+          <feGaussianBlur stdDeviation="6" result="b"/>
+          <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+        <filter id="glowPk" x="-100%" y="-100%" width="300%" height="300%">
+          <feGaussianBlur stdDeviation="4" result="b"/>
+          <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+      <rect width={W} height={H} fill="url(#skyBg2)" rx={12}/>
+      {[[45,28],[95,16],[162,34],[225,14],[295,30],[322,44]].map(([sx,sy],i)=>(
+        <circle key={i} cx={sx} cy={sy} r={1.3} fill="white" opacity={inDay?0.06:0.5}/>
+      ))}
+      <line x1={18} y1={cy} x2={W-18} y2={cy} stroke="#1A3A5C" strokeWidth={1.5}/>
+      <text x={24}   y={cy+14} fill="#334155" fontSize={9} fontFamily="Space Grotesk">L</text>
+      <text x={W-24} y={cy+14} fill="#334155" fontSize={9} fontFamily="Space Grotesk" textAnchor="end">O</text>
+      <line x1={cx} y1={cy} x2={peakPt.x} y2={peakPt.y+6} stroke="#FCD34D" strokeWidth={1} strokeDasharray="4 3" opacity={0.35}/>
+      <path d={`M${srPt.x},${srPt.y} A${r},${r} 0 0 1 ${ssPt.x},${ssPt.y}`}
+        fill="none" stroke="#1A3A5C" strokeWidth={1.5} strokeDasharray="5 4"/>
+      {/* ±2h referência — linha fina tracejada */}
+      <path d={`M${stdLPt.x},${stdLPt.y} A${r},${r} 0 0 1 ${stdRPt.x},${stdRPt.y}`}
+        fill="none" stroke="#F59E0B" strokeWidth={1.5} strokeDasharray="4 4"
+        strokeLinecap="round" opacity={0.28}/>
+      {showFw&&(
+        <>
+          <path d={`M${fwL.x},${fwL.y} A${r},${r} 0 0 1 ${fwR.x},${fwR.y}`}
+            fill="none" stroke="#3B82F6" strokeWidth={6} strokeLinecap="round" opacity={0.82}/>
+          {/* Dot + horário do início da janela do usuário */}
+          {userStart > srM + 15 && (
+            <>
+              <circle cx={fwL.x} cy={fwL.y} r={4} fill="#60A5FA"/>
+              <text x={fwL.x-8} y={fwL.y-6}
+                textAnchor="end" fill="#60A5FA" fontSize={9}
+                fontFamily="JetBrains Mono" fontWeight={700} opacity={0.95}>
+                {toHM(userStart)}
+              </text>
+            </>
+          )}
+          {/* Dot + horário do fim da janela do usuário */}
+          {userEnd < ssM - 15 && (
+            <>
+              <circle cx={fwR.x} cy={fwR.y} r={4} fill="#60A5FA"/>
+              <text x={fwR.x+8} y={fwR.y-6}
+                textAnchor="start" fill="#60A5FA" fontSize={9}
+                fontFamily="JetBrains Mono" fontWeight={700} opacity={0.95}>
+                {toHM(userEnd)}
+              </text>
+            </>
+          )}
+        </>
+      )}
+      <circle cx={peakPt.x} cy={peakPt.y} r={16} fill="#FCD34D" opacity={0.08} filter="url(#glowPk)"/>
+      <circle cx={peakPt.x} cy={peakPt.y} r={6}  fill="#FCD34D"/>
+      <text x={cx} y={peakPt.y-(nearPeak?34:16)} textAnchor="middle" fill="#FCD34D" fontSize={8} fontFamily="Space Grotesk" fontWeight={700} letterSpacing="0.12em" opacity={0.9}>PICO SOLAR</text>
+      <text x={cx} y={peakPt.y-(nearPeak?22:4)}  textAnchor="middle" fill="#FCD34D" fontSize={13} fontFamily="JetBrains Mono" fontWeight={700}>{toHM(peakM)}</text>
+      {inDay&&(
+        <>
+          <circle cx={sunPt.x} cy={sunPt.y} r={22} fill="#FCD34D" opacity={0.12} filter="url(#glow2)"/>
+          <circle cx={sunPt.x} cy={sunPt.y} r={9}  fill="#FBBF24"/>
+          <text x={sunPt.x} y={nearPeak ? sunPt.y+24 : sunPt.y-18} textAnchor="middle" fill="white" fontSize={11} fontFamily="Space Grotesk, sans-serif" fontWeight={600}>{toHM(nowM)}</text>
+        </>
+      )}
+      <circle cx={srPt.x} cy={srPt.y} r={3.5} fill="#F59E0B"/>
+      <text x={srPt.x} y={cy+14} textAnchor="middle" fill="#F59E0B" fontSize={11} fontFamily="Space Grotesk">🌅 {toHM(srM)}</text>
+      <circle cx={ssPt.x} cy={ssPt.y} r={3.5} fill="#F97316"/>
+      <text x={ssPt.x} y={cy+14} textAnchor="middle" fill="#F97316" fontSize={11} fontFamily="Space Grotesk">{toHM(ssM)} 🌇</text>
+    </svg>
+  );
+}
+
+// ── Timeline (v1.1 inalterada) ────────────────────────────────────────────────
+const OFFSET_OPTS = [1,2,3,4];
+function FlightTimeline({ sr, ss, fs, fe, now, onChange, onReset, peakM, twilightMins }) {
+  const srM=toMins(sr)||360, ssM=toMins(ss)||1080;
+  const pm=peakM!=null?peakM:Math.round((srM+ssM)/2);
+  const nowM=toMins(now);
+  const twMin=twilightMins??30;
+  // Escala "zoom": a barra vai do início do crepúsculo civil (dawn) ao fim (dusk).
+  // Sem noite — só crepúsculo civil + dia, dando muito mais resolução à janela útil.
+  const dawn=Math.max(0,srM-twMin), dusk=Math.min(1440,ssM+twMin);
+  const spanM = Math.max(60, dusk-dawn);
+  const pct=(m)=>((Math.max(dawn,Math.min(dusk,m))-dawn)/spanM)*100;
+  const dur=fe-fs;
+  const halfDur=(fe-fs)/2;
+  const isCentered=Math.abs(fs-(pm-halfDur))<16;
+  const applyOffset=(h)=>onChange(Math.max(srM,pm-h*60),Math.min(ssM,pm+h*60));
+  // zonas: crepúsculo (dawn→sr), dia (sr→ss), crepúsculo (ss→dusk)
+  const zones=[[dawn,srM,"#3B0764"],[srM,ssM,"#1E3A8A"],[ssM,dusk,"#3B0764"]].filter(([s,e])=>e>s);
+  return (
+    <div>
+      <div style={{textAlign:"center",marginBottom:12}}>
+        <div style={{color:"#64748B",fontSize:9,textTransform:"uppercase",letterSpacing:"0.1em"}}>Pico solar</div>
+        <div style={{color:"#FCD34D",fontFamily:"JetBrains Mono",fontSize:22,fontWeight:700,lineHeight:1.1}}>{toHM(pm)}</div>
+      </div>
+      <div style={{marginBottom:14}}>
+        <div style={{color:"#475569",fontSize:9,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:6,textAlign:"center"}}>Janela centrada no pico</div>
+        <div style={{display:"flex",gap:5,justifyContent:"center"}}>
+          {OFFSET_OPTS.map(h=>{
+            const isDef=h===2, isSel=isCentered&&Math.abs(halfDur-h*60)<16;
+            return(
+              <button key={h} onClick={()=>applyOffset(h)} style={{
+                border:isSel?"1.5px solid #3B82F6":isDef?"1px solid #F59E0B":"1px solid #1E3A5F",
+                borderRadius:16, background:isSel?"#1D4ED844":isDef?"#78350F44":"transparent",
+                color:isSel?"#93C5FD":isDef?"#F59E0B":"#60A5FA",
+                fontSize:11, padding:"5px 10px", cursor:"pointer", fontFamily:"Space Grotesk", fontWeight:isDef?700:400,
+              }}>±{h}h{isDef?" ★":""}</button>
+            );
+          })}
+        </div>
+      </div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+        <div>
+          <div style={{color:"#475569",fontSize:10,textTransform:"uppercase",letterSpacing:"0.06em"}}>Início</div>
+          <div style={{color:"#60A5FA",fontFamily:"JetBrains Mono",fontSize:18,fontWeight:700}}>{toHM(fs)}</div>
+        </div>
+        <div style={{textAlign:"center"}}>
+          <div style={{color:"#64748B",fontSize:12}}>{Math.floor(dur/60)}h{dur%60?` ${dur%60}m`:""}</div>
+          <button onClick={onReset} style={{marginTop:5,border:"1px solid #1E3A5F",borderRadius:20,background:"transparent",color:"#60A5FA",fontSize:10,padding:"3px 10px",cursor:"pointer",fontFamily:"Space Grotesk"}}>☀️ Luz do dia</button>
+        </div>
+        <div style={{textAlign:"right"}}>
+          <div style={{color:"#475569",fontSize:10,textTransform:"uppercase",letterSpacing:"0.06em"}}>Fim</div>
+          <div style={{color:"#60A5FA",fontFamily:"JetBrains Mono",fontSize:18,fontWeight:700}}>{toHM(fe)}</div>
+        </div>
+      </div>
+      <div data-track style={{position:"relative",height:36}}>
+        <div style={{position:"absolute",top:7,bottom:7,left:0,right:0,borderRadius:10,overflow:"hidden"}}>
+          {zones.map(([s,e,c],i)=>(<div key={i} style={{position:"absolute",top:0,bottom:0,left:`${pct(s)}%`,width:`${pct(e)-pct(s)}%`,background:c}}/>))}
+          <div style={{position:"absolute",top:0,bottom:0,left:`${pct(Math.max(srM,pm-120))}%`,width:`${pct(Math.min(ssM,pm+120))-pct(Math.max(srM,pm-120))}%`,background:"#F59E0B",opacity:0.18}}/>
+          <div style={{position:"absolute",top:0,bottom:0,left:`${pct(fs)}%`,width:`${pct(fe)-pct(fs)}%`,background:"linear-gradient(90deg,#1D4ED8,#3B82F6)",opacity:0.9}}/>
+          <div style={{position:"absolute",top:0,bottom:0,left:`${pct(pm)}%`,width:2,background:"#FCD34D",opacity:0.9,zIndex:9}}/>
+          <div style={{position:"absolute",top:0,bottom:0,left:`${pct(nowM)}%`,width:2,background:"#F59E0B",zIndex:8}}/>
+        </div>
+        <Thumb pct={pct(fs)} minM={dawn} spanM={spanM} onDrag={(m)=>m<fe-15&&onChange(Math.max(dawn,m),fe)}/>
+        <Thumb pct={pct(fe)} minM={dawn} spanM={spanM} onDrag={(m)=>m>fs+15&&onChange(fs,Math.min(dusk,m))}/>
+      </div>
+      <div style={{position:"relative",height:14,marginTop:5}}>
+        {(() => {
+          // marcas de hora dentro do intervalo visível (dawn→dusk)
+          const marks=[]; const h0=Math.ceil(dawn/60), h1=Math.floor(dusk/60);
+          const stepH = (h1-h0)>8 ? 2 : 1;
+          for(let h=h0; h<=h1; h+=stepH) marks.push(h);
+          return marks.map(h=>(
+            <span key={h} style={{color:"#1E3A5F",fontSize:9,fontFamily:"JetBrains Mono",
+              position:"absolute",left:`${pct(h*60)}%`,transform:"translateX(-50%)"}}>{Z2(h)}h</span>
+          ));
+        })()}
+      </div>
+      <div style={{display:"flex",gap:10,marginTop:10,justifyContent:"center",flexWrap:"wrap"}}>
+        {[["#3B0764","Crepúsculo civil"],["#1E3A8A","Dia"],["#F59E0B","Padrão ±2h"],["#3B82F6","Sua janela"],["#FCD34D","Pico"]].map(([c,l])=>(
+          <div key={l} style={{display:"flex",alignItems:"center",gap:4}}>
+            <div style={{width:10,height:10,borderRadius:2,background:c,flexShrink:0}}/>
+            <span style={{color:"#475569",fontSize:9}}>{l}</span>
+          </div>
+        ))}
+      </div>
     </div>
-    <div class="sep"></div>
-    <div class="lbl">Mapa de fundo</div>
-    <div class="map-btns">
-      <button class="map-btn active" id="btnOsm">🗺<br>Mapa</button>
-      <button class="map-btn" id="btnSat">🛰<br>Satélite</button>
-      <button class="map-btn" id="btnDark">🌑<br>Escuro</button>
+  );
+}
+
+// ── WxCard ─────────────────────────────────────────────────────────────────────
+function WxCard({ icon, label, value, unit, grade="good", sub, subLabel }) {
+  const c = CL[grade];
+  return (
+    <div style={{background:"#0D1F35",borderRadius:12,padding:"12px 14px",borderLeft:`3px solid ${c.color}`,display:"flex",flexDirection:"column",gap:3}}>
+      <div style={{display:"flex",justifyContent:"space-between"}}>
+        <span style={{fontSize:18}}>{icon}</span>
+        <span style={{fontSize:8,fontWeight:700,letterSpacing:"0.04em",background:c.bg+"44",color:c.color,padding:"2px 8px",borderRadius:20}}>{c.tag}</span>
+      </div>
+      <div style={{color:"#475569",fontSize:10,textTransform:"uppercase",letterSpacing:"0.07em",marginTop:2}}>{label}</div>
+      <div style={{color:c.color,fontFamily:"JetBrains Mono",fontSize:22,fontWeight:700,lineHeight:1.1}}>
+        {value}<span style={{fontSize:12,color:"#64748B",fontWeight:400,marginLeft:2}}>{unit}</span>
+      </div>
+      {sub!=null&&(
+        <div style={{color:"#475569",fontSize:11,marginTop:1}}>
+          {subLabel}:{" "}<span style={{color:"#94A3B8",fontFamily:"JetBrains Mono"}}>{sub}</span>
+        </div>
+      )}
     </div>
-  </div>
+  );
+}
 
-  <!-- Legenda de precipitação -->
-  <div class="precip-legend">
-    Precip
-    <div class="ends"><span>Forte</span><span>Fraca</span></div>
-    <div class="bar"></div>
-  </div>
+// ── Gráfico de previsão horária de vento 120m ────────────────────────────────
+function WindForecastChart({ data }) {
+  if (!data || !data.length) return null;
+  const W = 320, H = 130, padL = 28, padR = 10, padT = 14, padB = 22;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
 
-  <!-- Linha do tempo -->
-  <div class="timeline">
-    <div class="timeline-top">
-      <button class="tl-play" id="playBtn" title="Reproduzir">▶</button>
-      <div class="tl-time"><span id="tlTime">—</span><span class="rel" id="tlRel"></span></div>
+  const winds = data.map(d => d.wind ?? 0);
+  const gusts = data.map(d => d.gust ?? 0);
+  const maxV = Math.max(12, ...winds, ...gusts) * 1.1;  // teto mínimo 12 p/ escala de risco
+  const n = data.length;
+
+  const x = (i) => padL + (n<=1 ? 0 : (i/(n-1))*plotW);
+  const y = (v) => padT + plotH - (v/maxV)*plotH;
+
+  // Cor por intensidade (km/h → m/s): verde ≤10, laranja 10-12, vermelho ≥12 m/s
+  const colorForKmh = (kmh) => {
+    const ms = kmh / 3.6;
+    return ms <= 10.0 ? "#22C55E" : ms < 12.0 ? "#F97316" : "#EF4444";
+  };
+  // Cor de um segmento entre dois pontos = a mais severa dos dois extremos
+  const segColor = (a, b) => {
+    const ca = colorForKmh(a), cb = colorForKmh(b);
+    const sev = { "#22C55E":0, "#F97316":1, "#EF4444":2 };
+    return sev[ca] >= sev[cb] ? ca : cb;
+  };
+
+  // Linhas de referência m/s (10 e 12 m/s → km/h)
+  const refs = [
+    { ms:10, kmh:36,   color:"#F97316", label:"10 m/s" },
+    { ms:12, kmh:43.2, color:"#EF4444", label:"12 m/s" },
+  ].filter(r => r.kmh <= maxV);
+
+  // Constrói os segmentos individuais (para colorir cada trecho)
+  const segments = (arr) => arr.slice(1).map((v,i) => ({
+    x1:x(i),   y1:y(arr[i]),
+    x2:x(i+1), y2:y(v),
+    color: segColor(arr[i], v),
+  }));
+  const windSegs = segments(winds);
+  const gustSegs = segments(gusts);
+  const areaPath = `${gusts.map((v,i)=>`${i?"L":"M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ")} L${x(n-1)},${y(0)} L${x(0)},${y(0)} Z`;
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width:"100%", display:"block" }}>
+      {/* Linhas de referência de risco */}
+      {refs.map(r => (
+        <g key={r.ms}>
+          <line x1={padL} y1={y(r.kmh)} x2={W-padR} y2={y(r.kmh)}
+            stroke={r.color} strokeWidth={1} strokeDasharray="3 3" opacity={0.4}/>
+          <text x={W-padR} y={y(r.kmh)-2} textAnchor="end" fill={r.color} fontSize={7} opacity={0.7}>{r.label}</text>
+        </g>
+      ))}
+      {/* Eixo Y labels (km/h) */}
+      {[0, Math.round(maxV/2), Math.round(maxV)].map((v,i) => (
+        <text key={i} x={padL-4} y={y(v)+3} textAnchor="end" fill="#334155" fontSize={7} fontFamily="JetBrains Mono">{v}</text>
+      ))}
+      {/* Área sob a rajada */}
+      <path d={areaPath} fill="#EF4444" opacity={0.06}/>
+      {/* Rajada — segmentos coloridos, tracejado */}
+      {gustSegs.map((s,i) => (
+        <line key={"g"+i} x1={s.x1} y1={s.y1} x2={s.x2} y2={s.y2}
+          stroke={s.color} strokeWidth={1.5} strokeDasharray="3 2" opacity={0.65} strokeLinecap="round"/>
+      ))}
+      {/* Vento constante — segmentos coloridos, sólido */}
+      {windSegs.map((s,i) => (
+        <line key={"w"+i} x1={s.x1} y1={s.y1} x2={s.x2} y2={s.y2}
+          stroke={s.color} strokeWidth={2.5} strokeLinecap="round"/>
+      ))}
+      {/* Pontos do vento, coloridos por risco individual */}
+      {data.map((d,i) => (
+        <circle key={i} cx={x(i)} cy={y(d.wind??0)} r={2.2} fill={colorForKmh(d.wind??0)}/>
+      ))}
+      {/* Labels de hora (a cada 3) */}
+      {data.map((d,i) => (i%3===0) && (
+        <text key={"t"+i} x={x(i)} y={H-6} textAnchor="middle" fill="#475569" fontSize={7} fontFamily="JetBrains Mono">
+          {String(d.time.getHours()).padStart(2,"0")}h
+        </text>
+      ))}
+    </svg>
+  );
+}
+
+// ── Mini-gráfico de previsão Kp 3 dias ───────────────────────────────────────
+function KpForecastBars({ data }) {
+  if (!data || !data.length) return null;
+  const maxKp = 9;
+  const barColor = (kp) => kp < 4 ? "#22C55E" : kp < 5 ? "#F97316" : "#EF4444";
+  // Agrupar por dia para rótulos
+  const dayLabel = (d) => d.toLocaleDateString("pt-BR",{weekday:"short"}).replace(".","");
+  let lastDay = null;
+  return (
+    <div>
+      <div style={{ display:"flex", alignItems:"flex-end", gap:1.5, height:40, marginTop:4 }}>
+        {data.map((d,i) => {
+          const h = Math.max(3, (d.kp/maxKp)*40);
+          return (
+            <div key={i} style={{ flex:1, display:"flex", flexDirection:"column", justifyContent:"flex-end", alignItems:"center" }}>
+              <div style={{
+                width:"100%", height:h, borderRadius:1,
+                background: barColor(d.kp),
+                opacity: d.observed ? 1 : 0.55,
+              }} title={`Kp ${d.kp.toFixed(1)}`}/>
+            </div>
+          );
+        })}
+      </div>
+      <div style={{ display:"flex", gap:1.5, marginTop:2 }}>
+        {data.map((d,i) => {
+          const dl = dayLabel(d.t);
+          const show = dl !== lastDay;
+          lastDay = dl;
+          return (
+            <div key={i} style={{ flex:1, textAlign:"left", overflow:"visible" }}>
+              {show && i%2===0 && <span style={{ color:"#475569", fontSize:7 }}>{dl}</span>}
+            </div>
+          );
+        })}
+      </div>
     </div>
-    <input type="range" class="tl-slider" id="tlSlider" min="0" max="0" value="0"/>
-    <div class="tl-marks"><span>-2h</span><span>agora</span></div>
-  </div>
-
-  <!-- Alerta -->
-  <div class="alert" id="alert">Carregando radar de precipitação…</div>
-
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script>
-// ── Estado e configuração ──────────────────────────────────────────
-let userLat=-22.1209, userLon=-51.3886;   // Presidente Prudente (fallback)
-const RV_API = 'https://api.rainviewer.com/public/weather-maps.json';
-
-// CHAVE OpenWeatherMap — cole a sua aqui (gratuita em openweathermap.org).
-// A chave demora ~2h para ativar após criada.
-const OWM_KEY = d6d4bd3fc7921e759bcc5b6634dca6c5;
-
-// ── Mapa base ──────────────────────────────────────────────────────
-const map = L.map('map',{zoomControl:true,attributionControl:true}).setView([userLat,userLon],7);
-
-const tiles = {
-  osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}),
-  sat: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'© Esri'}),
-  dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:19,attribution:'© CARTO'}),
-};
-let curTile='osm';
-tiles.osm.addTo(map);
-
-// Marcador do usuário
-let userMarker = L.circleMarker([userLat,userLon],{radius:7,color:'#fff',weight:2,fillColor:'#3B82F6',fillOpacity:1}).addTo(map);
-
-// ── Camadas OpenWeatherMap (nuvens, temperatura) ───────────────────
-const owmTem = !OWM_KEY || OWM_KEY==='COLE_SUA_CHAVE_AQUI' ? false : true;
-const owmLayers = {
-  clouds: owmTem ? L.tileLayer(`https://tile.openweathermap.org/map/clouds_new/{z}/{x}/{y}.png?appid=${OWM_KEY}`,{opacity:0.7,zIndex:4,maxZoom:18}) : null,
-  temp:   owmTem ? L.tileLayer(`https://tile.openweathermap.org/map/temp_new/{z}/{x}/{y}.png?appid=${OWM_KEY}`,{opacity:0.6,zIndex:3,maxZoom:18}) : null,
-};
-
-// ── Radar de precipitação (RainViewer) ─────────────────────────────
-let radarFrames=[];      // lista de {time, path}
-let radarLayers={};      // cache de camadas por índice
-let frameIdx=0;          // frame atual
-let radarOpacity=0.8;
-let playing=false, playTimer=null;
-const RV_TILE_HOST='https://tilecache.rainviewer.com';
-const RV_SIZE=256, RV_COLOR=2, RV_SMOOTH=1, RV_SNOW=1; // color 2 = Universal Blue
-
-function urlDoFrame(f){
-  // RainViewer: {host}{path}/{size}/{z}/{x}/{y}/{color}/{smooth}_{snow}.png
-  return `${f.host}${f.path}/${RV_SIZE}/{z}/{x}/{y}/${RV_COLOR}/${RV_SMOOTH}_${RV_SNOW}.png`;
+  );
 }
 
-function camadaDoFrame(i){
-  if(radarLayers[i]) return radarLayers[i];
-  const f=radarFrames[i];
-  const layer=L.tileLayer(urlDoFrame(f),{opacity:0,zIndex:5,maxZoom:18,tileSize:256});
-  radarLayers[i]=layer;
-  layer.addTo(map);
-  return layer;
+// ── Helpers METAR (decodificação dos campos da observação) ───────────────────
+function metarWindDir(deg){
+  if (deg == null || deg === "VRB") return "VRB";
+  return compass(deg) + " " + deg + "°";
 }
+function metarVisib(v){
+  if (v == null) return "—";
+  // "10+" significa ≥10 km (ou ≥10 SM dependendo); tratamos como 10+ km
+  if (typeof v === "string" && v.includes("+")) return "10+ km";
+  const num = parseFloat(v);
+  return isNaN(num) ? String(v) : num.toFixed(num<10?1:0) + " km";
+}
+function metarIsCavok(m){
+  if (!m) return false;
+  if (m.rawOb && /\bCAVOK\b/.test(m.rawOb)) return true;
+  // deriva: vis ≥10 e sem nuvens abaixo de 1500m
+  const vis10 = (typeof m.visib === "string" && m.visib.includes("+")) || parseFloat(m.visib) >= 10;
+  const noLowClouds = !m.clouds || m.clouds.every(c => c.cover==="CLR" || c.cover==="SKC" || c.cover==="NCD" || (c.base!=null && c.base*0.3048 >= 1500));
+  return vis10 && noLowClouds;
+}
+function metarAgeMin(m){
+  if (!m || !m.obsTime) return null;
+  return Math.round((Date.now()/1000 - m.obsTime)/60);
+}
+const KT_TO_KMH = 1.852;
 
-function mostrarFrame(i){
-  if(!radarFrames.length) return;
-  i=Math.max(0,Math.min(i,radarFrames.length-1));
-  const novaCamada=camadaDoFrame(i);
-  // Esconde as outras, mostra a atual (com o toggle de precip respeitado)
-  const mostrar=document.getElementById('tgPrecip').checked;
-  Object.keys(radarLayers).forEach(k=>{
-    radarLayers[k].setOpacity(parseInt(k)===i && mostrar ? radarOpacity : 0);
-  });
-  frameIdx=i;
-  document.getElementById('tlSlider').value=i;
-  atualizarRelogio(i);
+// Distância aproximada (km) entre duas coords (haversine simplificado)
+function distKm(la1,lo1,la2,lo2){
+  const R=6371, rad=Math.PI/180;
+  const dLa=(la2-la1)*rad, dLo=(lo2-lo1)*rad;
+  const a=Math.sin(dLa/2)**2 + Math.cos(la1*rad)*Math.cos(la2*rad)*Math.sin(dLo/2)**2;
+  return 2*R*Math.asin(Math.sqrt(a));
 }
-
-function atualizarRelogio(i){
-  const f=radarFrames[i]; if(!f) return;
-  const d=new Date(f.time*1000);
-  const hh=String(d.getHours()).padStart(2,'0');
-  const mm=String(d.getMinutes()).padStart(2,'0');
-  document.getElementById('tlTime').textContent=`${hh}:${mm}`;
-  const agora=radarFrames[radarFrames.length-1];
-  const difMin=Math.round((f.time-agora.time)/60);
-  const rel = difMin===0 ? 'agora' : (difMin<0 ? `${difMin} min` : `+${difMin} min`);
-  document.getElementById('tlRel').textContent=rel;
-}
-
-async function carregarRadar(){
-  try{
-    const r=await fetch(RV_API);
-    const j=await r.json();
-    const host=j.host||'';
-    const past=(j.radar&&j.radar.past)||[];
-    const nowcast=(j.radar&&j.radar.nowcast)||[];
-    radarFrames=past.concat(nowcast).map(f=>({time:f.time,path:f.path,host}));
-    if(!radarFrames.length){ setAlert('Sem dados de radar no momento.'); return; }
-    const sl=document.getElementById('tlSlider');
-    sl.max=radarFrames.length-1;
-    sl.value=radarFrames.length-1;
-    mostrarFrame(radarFrames.length-1);  // frame mais recente
-    document.getElementById('alert').classList.add('hide');
-  }catch(e){
-    setAlert('Erro ao carregar radar de precipitação.');
-  }
-}
-
-// ── Animação play/pause ────────────────────────────────────────────
-function togglePlay(){
-  playing=!playing;
-  document.getElementById('playBtn').textContent=playing?'⏸':'▶';
-  if(playing){
-    playTimer=setInterval(()=>{
-      let prox=frameIdx+1;
-      if(prox>=radarFrames.length) prox=0;
-      mostrarFrame(prox);
-    },700);
-  }else{
-    clearInterval(playTimer); playTimer=null;
-  }
-}
-
-// ── Helpers ────────────────────────────────────────────────────────
-function setAlert(msg){
-  const el=document.getElementById('alert');
-  if(!msg){ el.classList.add('hide'); return; }
-  el.textContent=msg; el.classList.remove('hide');
-}
-function recenter(z){
-  map.setView([userLat,userLon], z||map.getZoom());
-  userMarker.setLatLng([userLat,userLon]);
-}
-
-// ── Busca (Nominatim) com autocomplete e dedupe ────────────────────
-const suggestEl=document.getElementById('suggest');
-let suggestItems=[], suggestIdx=-1, suggestTimer=null;
-
-async function buscarSugestoes(q){
-  try{
-    const r=await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=6&accept-language=pt-BR&countrycodes=br`);
-    return await r.json();
-  }catch(e){ return []; }
-}
-function renderSugestoes(lista){
-  const vistos=new Set(); const unica=[];
-  for(const it of (lista||[])){
-    const nome=it.display_name.split(',')[0].trim().toLowerCase();
-    const regiao=it.display_name.split(',').slice(1,3).join(',').trim().toLowerCase();
-    const cN=`${nome}|${regiao}`, cC=`${parseFloat(it.lat).toFixed(2)},${parseFloat(it.lon).toFixed(2)}`;
-    if(vistos.has(cN)||vistos.has(cC)) continue;
-    vistos.add(cN); vistos.add(cC); unica.push(it);
-  }
-  suggestItems=unica; suggestIdx=-1;
-  if(!unica.length){ suggestEl.classList.remove('open'); suggestEl.innerHTML=''; return; }
-  suggestEl.innerHTML=unica.map((it,i)=>{
-    const nome=it.display_name.split(',')[0];
-    const resto=it.display_name.split(',').slice(1,4).join(',').trim();
-    return `<div class="suggest-item" data-i="${i}">${nome}<span class="sub">${resto}</span></div>`;
-  }).join('');
-  suggestEl.classList.add('open');
-  suggestEl.querySelectorAll('.suggest-item').forEach(el=>{
-    el.addEventListener('click',()=>escolherSugestao(parseInt(el.dataset.i)));
-  });
-}
-function escolherSugestao(i){
-  const it=suggestItems[i]; if(!it) return;
-  userLat=parseFloat(it.lat); userLon=parseFloat(it.lon);
-  document.getElementById('q').value=it.display_name.split(',')[0];
-  suggestEl.classList.remove('open');
-  recenter(9);
-}
-function parseCoords(q){
-  const m=q.trim().replace(',',' ').split(/\s+/);
-  if(m.length>=2){
-    const lat=parseFloat(m[0]), lon=parseFloat(m[1]);
-    if(Number.isFinite(lat)&&Number.isFinite(lon)&&Math.abs(lat)<=90&&Math.abs(lon)<=180) return{lat,lon};
+// Busca a estação METAR mais próxima via bounding box do aviationweather.gov.
+// Retorna o objeto METAR completo (já é a observação) ou null.
+async function fetchNearestMetar(lat, lon){
+  // caixa de ~±2.2° (~240km) ao redor do ponto
+  const d = 2.2;
+  const bbox = `${(lat-d).toFixed(2)},${(lon-d).toFixed(2)},${(lat+d).toFixed(2)},${(lon+d).toFixed(2)}`;
+  const base = `https://aviationweather.gov/api/data/metar?bbox=${bbox}&format=json`;
+  const attempts = [
+    { url: base, wrap:false },
+    { url: "https://api.allorigins.win/get?url=" + encodeURIComponent(base), wrap:true },
+    { url: "https://corsproxy.io/?url=" + encodeURIComponent(base), wrap:false },
+    { url: "https://api.codetabs.com/v1/proxy/?quest=" + encodeURIComponent(base), wrap:false },
+  ];
+  for (const { url } of attempts){
+    try {
+      const r = await fetch(url);
+      if(!r.ok) continue;
+      let txt = await r.text();
+      if(!txt || !txt.trim()) continue;
+      let data;
+      try { data = JSON.parse(txt); } catch { continue; }
+      if (data && typeof data==="object" && typeof data.contents==="string"){
+        try { data = JSON.parse(data.contents); } catch { continue; }
+      }
+      if (!Array.isArray(data) || !data.length) continue;
+      // escolhe a estação válida mais próxima
+      const valid = data.filter(m => (m.rawOb || m.temp!=null) && m.lat!=null && m.lon!=null);
+      if (!valid.length) continue;
+      valid.sort((a,b) => distKm(lat,lon,a.lat,a.lon) - distKm(lat,lon,b.lat,b.lon));
+      const best = valid[0];
+      best._distKm = Math.round(distKm(lat,lon,best.lat,best.lon));
+      return best;
+    } catch(e){ /* tenta próximo */ }
   }
   return null;
 }
-async function executarBusca(){
-  const q=document.getElementById('q').value.trim();
-  if(!q) return;
-  const c=parseCoords(q);
-  if(c){ userLat=c.lat; userLon=c.lon; recenter(10); suggestEl.classList.remove('open'); return; }
-  const lista=await buscarSugestoes(q);
-  if(lista&&lista.length) escolherSugestao(0);
-}
-
-document.getElementById('q').addEventListener('input',e=>{
-  const q=e.target.value.trim();
-  clearTimeout(suggestTimer);
-  if(q.length<3){ suggestEl.classList.remove('open'); return; }
-  suggestTimer=setTimeout(async()=>{ renderSugestoes(await buscarSugestoes(q)); },300);
-});
-document.getElementById('q').addEventListener('keydown',e=>{
-  if(e.key==='Enter'){ e.preventDefault(); if(suggestIdx>=0) escolherSugestao(suggestIdx); else executarBusca(); }
-  else if(e.key==='Escape'){ suggestEl.classList.remove('open'); }
-});
-document.getElementById('goBtn').addEventListener('click',executarBusca);
-document.getElementById('gpsBtn').addEventListener('click',()=>{
-  if(navigator.geolocation) navigator.geolocation.getCurrentPosition(
-    p=>{userLat=p.coords.latitude;userLon=p.coords.longitude;recenter(9);},
-    ()=>setAlert('GPS indisponível.'),{timeout:8000});
-});
-
-// ── Toggles ────────────────────────────────────────────────────────
-document.getElementById('tgPrecip').addEventListener('change',()=>mostrarFrame(frameIdx));
-document.getElementById('tgClouds').addEventListener('change',e=>{
-  if(!owmLayers.clouds){ alert('Configure a chave do OpenWeatherMap no código para usar esta camada.'); e.target.checked=false; return; }
-  if(e.target.checked) owmLayers.clouds.addTo(map); else map.removeLayer(owmLayers.clouds);
-});
-document.getElementById('tgTemp').addEventListener('change',e=>{
-  if(!owmLayers.temp){ alert('Configure a chave do OpenWeatherMap no código para usar esta camada.'); e.target.checked=false; return; }
-  if(e.target.checked) owmLayers.temp.addTo(map); else map.removeLayer(owmLayers.temp);
-});
-document.getElementById('tgLocal').addEventListener('change',e=>{
-  if(e.target.checked) userMarker.addTo(map); else map.removeLayer(userMarker);
-});
-document.getElementById('opacity').addEventListener('input',e=>{
-  radarOpacity=parseInt(e.target.value)/100;
-  mostrarFrame(frameIdx);
-});
-document.getElementById('tlSlider').addEventListener('input',e=>{
-  if(playing) togglePlay();
-  mostrarFrame(parseInt(e.target.value));
-});
-document.getElementById('playBtn').addEventListener('click',togglePlay);
-
-// Troca de mapa de fundo
-['Osm','Sat','Dark'].forEach(k=>{
-  document.getElementById('btn'+k).addEventListener('click',()=>{
-    if(curTile===k.toLowerCase()) return;
-    map.removeLayer(tiles[curTile]);
-    curTile=k.toLowerCase();
-    tiles[curTile].addTo(map);
-    // Reposiciona o radar acima do novo fundo
-    Object.values(radarLayers).forEach(l=>{ map.removeLayer(l); l.addTo(map); });
-    mostrarFrame(frameIdx);
-    document.querySelectorAll('.map-btn').forEach(b=>b.classList.remove('active'));
-    document.getElementById('btn'+k).classList.add('active');
-  });
-});
-
-// ── Integração com o shell (DroneWeather) ──────────────────────────
-const _params=new URLSearchParams(location.search);
-const _qlat=parseFloat(_params.get('lat')), _qlon=parseFloat(_params.get('lon'));
-if(Number.isFinite(_qlat)&&Number.isFinite(_qlon)){
-  userLat=_qlat; userLon=_qlon; recenter(8);
-}else if(navigator.geolocation){
-  navigator.geolocation.getCurrentPosition(
-    p=>{userLat=p.coords.latitude;userLon=p.coords.longitude;recenter(8);},
-    ()=>{},{timeout:8000});
-}
-window.addEventListener('message',ev=>{
-  const d=ev.data;
-  if(d&&d.tipo==='setLocal'&&Number.isFinite(d.lat)&&Number.isFinite(d.lon)){
-    userLat=d.lat; userLon=d.lon; recenter(8);
+// Fallback: busca por ICAO específico
+async function fetchMetarByIcao(icao){
+  const base = `https://aviationweather.gov/api/data/metar?ids=${icao}&format=json`;
+  const attempts = [
+    base,
+    "https://api.allorigins.win/get?url=" + encodeURIComponent(base),
+    "https://corsproxy.io/?url=" + encodeURIComponent(base),
+  ];
+  for (const url of attempts){
+    try {
+      const r = await fetch(url); if(!r.ok) continue;
+      let txt = await r.text(); if(!txt||!txt.trim()) continue;
+      let data; try { data = JSON.parse(txt); } catch { continue; }
+      if (data && typeof data==="object" && typeof data.contents==="string"){
+        try { data = JSON.parse(data.contents); } catch { continue; }
+      }
+      const m = Array.isArray(data) ? (data.find(x=>x.icaoId===icao)||data[0]) : data;
+      if (m && (m.rawOb || m.temp!=null)) return m;
+    } catch(e){}
   }
-});
+  return null;
+}
 
-// ── Init ───────────────────────────────────────────────────────────
-carregarRadar();
-// Atualiza os frames a cada 5 min (RainViewer atualiza nesse intervalo)
-setInterval(()=>{ radarLayers={}; carregarRadar(); }, 5*60*1000);
+// ── Domo solar 3D com sombra projetada + janela de voo + trópicos ────────────
+function SunDome3D({ lat, lon, dateKey, sunMin, fs, fe, utcOffsetSec }){
+  const mountRef = useRef(null);
+  const S = useRef({});
+
+  // Init (uma vez)
+  useEffect(() => {
+    if (typeof THREE === "undefined" || !mountRef.current) return;
+    const mount = mountRef.current;
+    const W = mount.clientWidth || 320, H = mount.clientHeight || 320;
+    const R = 10, GNO_H = 3.0;
+
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.Fog(0x080F1A, 16, 42);
+    const camera = new THREE.PerspectiveCamera(50, W/H, 0.1, 200);
+    const renderer = new THREE.WebGLRenderer({ antialias:true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(W, H);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    mount.appendChild(renderer.domElement);
+    renderer.domElement.style.touchAction = "none";
+
+    // Chão
+    const ground = new THREE.Mesh(
+      new THREE.CircleGeometry(R*1.15, 64),
+      new THREE.MeshStandardMaterial({ color:0x101A2E, roughness:.95 })
+    );
+    ground.rotation.x = -Math.PI/2; ground.receiveShadow = true;
+    scene.add(ground);
+    const grid = new THREE.PolarGridHelper(R*1.1, 8, 6, 64, 0x1E2A42, 0x172238);
+    grid.position.y = 0.01; scene.add(grid);
+
+    // Cardeais
+    const mkLabel = (txt, color) => {
+      const c = document.createElement("canvas"); c.width=c.height=128;
+      const ctx=c.getContext("2d"); ctx.fillStyle=color;
+      ctx.font="bold 78px Space Grotesk, sans-serif"; ctx.textAlign="center"; ctx.textBaseline="middle";
+      ctx.fillText(txt,64,68);
+      const sp=new THREE.Sprite(new THREE.SpriteMaterial({ map:new THREE.CanvasTexture(c), transparent:true }));
+      sp.scale.set(1.5,1.5,1.5); return sp;
+    };
+    [["N",0,"#5BA9F5"],["L",90,"#7C8AA5"],["S",180,"#7C8AA5"],["O",270,"#7C8AA5"]].forEach(([t,d,col])=>{
+      const a=d*Math.PI/180; const l=mkLabel(t,col);
+      l.position.set(Math.sin(a)*R*1.04, 0.7, Math.cos(a)*R*1.04); scene.add(l);
+    });
+
+    // Gnômon
+    const gnomon = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.12,0.16,GNO_H,16),
+      new THREE.MeshStandardMaterial({ color:0xB05A2A, roughness:.6 })
+    );
+    gnomon.position.y=GNO_H/2; gnomon.castShadow=true; scene.add(gnomon);
+    const gnomonTop = new THREE.Mesh(
+      new THREE.SphereGeometry(0.2,16,16),
+      new THREE.MeshStandardMaterial({ color:0xD56A35, roughness:.5 })
+    );
+    gnomonTop.position.y=GNO_H; gnomonTop.castShadow=true; scene.add(gnomonTop);
+
+    // Luzes
+    const sunLight = new THREE.DirectionalLight(0xFFF4E0, 1.4);
+    sunLight.castShadow=true; sunLight.shadow.mapSize.set(1024,1024);
+    sunLight.shadow.camera.near=0.5; sunLight.shadow.camera.far=60;
+    sunLight.shadow.camera.left=-R*1.3; sunLight.shadow.camera.right=R*1.3;
+    sunLight.shadow.camera.top=R*1.3; sunLight.shadow.camera.bottom=-R*1.3;
+    scene.add(sunLight); scene.add(sunLight.target);
+    scene.add(new THREE.AmbientLight(0x3A4866, 0.7));
+    const hemi = new THREE.HemisphereLight(0x8FB4FF, 0x080F1A, 0.5); scene.add(hemi);
+
+    // Sol
+    const sunMesh = new THREE.Mesh(new THREE.SphereGeometry(0.55,24,24), new THREE.MeshBasicMaterial({ color:0xFFD54A }));
+    scene.add(sunMesh);
+    const sunGlow = new THREE.Mesh(new THREE.SphereGeometry(0.95,24,24), new THREE.MeshBasicMaterial({ color:0xFFD54A, transparent:true, opacity:0.16 }));
+    scene.add(sunGlow);
+
+    // Marcador do pico solar (círculo amarelo no ponto de altitude máxima)
+    const peakMarker = new THREE.Mesh(
+      new THREE.SphereGeometry(0.38,20,20),
+      new THREE.MeshBasicMaterial({ color:0xFCD34D })
+    );
+    peakMarker.visible = false; scene.add(peakMarker);
+    const peakRing = new THREE.Mesh(
+      new THREE.RingGeometry(0.5,0.66,28),
+      new THREE.MeshBasicMaterial({ color:0xFCD34D, transparent:true, opacity:0.6, side:THREE.DoubleSide })
+    );
+    peakRing.visible = false; scene.add(peakRing);
+
+    // Câmera orbital
+    const cam = { az:35*Math.PI/180, pol:58*Math.PI/180, dist:24 };
+    const applyCam = () => {
+      cam.pol = Math.max(0.15, Math.min(Math.PI/2-0.02, cam.pol));
+      cam.dist = Math.max(13, Math.min(38, cam.dist));
+      camera.position.set(
+        cam.dist*Math.sin(cam.pol)*Math.sin(cam.az),
+        cam.dist*Math.cos(cam.pol),
+        cam.dist*Math.sin(cam.pol)*Math.cos(cam.az)
+      );
+      camera.lookAt(0,1.4,0);
+    };
+    applyCam();
+
+    let drag=false, lx=0, ly=0, pinch=0;
+    const el = renderer.domElement;
+    const onDown=(e)=>{drag=true; lx=e.clientX; ly=e.clientY;};
+    const onMove=(e)=>{ if(!drag)return; cam.az-=(e.clientX-lx)*0.008; cam.pol-=(e.clientY-ly)*0.006; lx=e.clientX; ly=e.clientY; applyCam(); };
+    const onUp=()=>{drag=false;};
+    const onWheel=(e)=>{ e.preventDefault(); cam.dist+=e.deltaY*0.02; applyCam(); };
+    const onTouch=(e)=>{ if(e.touches.length===2){ const dx=e.touches[0].clientX-e.touches[1].clientX, dy=e.touches[0].clientY-e.touches[1].clientY, d=Math.hypot(dx,dy); if(pinch) { cam.dist+=(pinch-d)*0.05; applyCam(); } pinch=d; } };
+    const onTouchEnd=()=>{pinch=0;};
+    el.addEventListener("pointerdown",onDown); el.addEventListener("pointermove",onMove);
+    el.addEventListener("pointerup",onUp); el.addEventListener("pointercancel",onUp);
+    el.addEventListener("wheel",onWheel,{passive:false});
+    el.addEventListener("touchmove",onTouch,{passive:true}); el.addEventListener("touchend",onTouchEnd);
+
+    const onResize=()=>{ const w=mount.clientWidth, h=mount.clientHeight||320; renderer.setSize(w,h); camera.aspect=w/h; camera.updateProjectionMatrix(); };
+    window.addEventListener("resize", onResize);
+
+    let raf=0;
+    const loop=()=>{ raf=requestAnimationFrame(loop); sunGlow.material.opacity=0.12+0.05*Math.sin(Date.now()*0.002); renderer.render(scene,camera); };
+    loop();
+
+    S.current = { scene, camera, renderer, R, GNO_H, sunLight, hemi, sunMesh, sunGlow,
+      arcLine:null, fwArcs:[], fwDots:[], azLine:null, tropics:[], peakMarker, peakRing, applyCam, cam, raf, el,
+      handlers:{onDown,onMove,onUp,onWheel,onTouch,onTouchEnd,onResize} };
+
+    return () => {
+      cancelAnimationFrame(S.current.raf);
+      el.removeEventListener("pointerdown",onDown); el.removeEventListener("pointermove",onMove);
+      el.removeEventListener("pointerup",onUp); el.removeEventListener("pointercancel",onUp);
+      el.removeEventListener("wheel",onWheel); el.removeEventListener("touchmove",onTouch); el.removeEventListener("touchend",onTouchEnd);
+      window.removeEventListener("resize",onResize);
+      renderer.dispose();
+      if (el.parentNode) el.parentNode.removeChild(el);
+    };
+  }, []);
+
+  // Reconstrói arco do dia + trópicos + pico (muda com data/local/fuso)
+  useEffect(() => {
+    const s = S.current; if (!s || !s.scene) return;
+    const THREEref = THREE, R = s.R;
+    const [y,m,d] = dateKey.split("-").map(Number);
+    const off = utcOffsetSec ?? (-3*3600);
+
+    // Limpa antigos
+    if (s.arcLine){ s.arcLine.forEach? s.arcLine.forEach(l=>{s.scene.remove(l);l.geometry.dispose();}) : (s.scene.remove(s.arcLine), s.arcLine.geometry.dispose()); s.arcLine=null; }
+    s.tropics.forEach(t => { s.scene.remove(t); t.geometry && t.geometry.dispose(); });
+    s.tropics = [];
+
+    // Trópicos / Equador — destaque aumentado (mais opacos, linha sólida fina)
+    const refs = [
+      { decl:23.44,  color:0x93A4C8, op:0.6 },   // Câncer
+      { decl:0,      color:0x6EE7F0, op:0.55 },   // Equador (ciano sutil)
+      { decl:-23.44, color:0x93A4C8, op:0.6 },   // Capricórnio
+    ];
+    refs.forEach(r => {
+      const pts = declArcPts(THREEref, r.decl, lat, R);
+      if (pts.length < 2) return;
+      const line = new THREEref.Line(
+        new THREEref.BufferGeometry().setFromPoints(pts),
+        new THREEref.LineDashedMaterial({ color:r.color, dashSize:0.5, gapSize:0.3, transparent:true, opacity:r.op })
+      );
+      line.computeLineDistances();
+      s.scene.add(line); s.tropics.push(line);
+    });
+
+    // Arco do dia (amber) — fuso correto + quebra no zênite + acha o pico
+    const samples = [];
+    let peak = { alt:-99, v:null };
+    for (let mm=0; mm<=1440; mm+=4){
+      const dt = localMinToDate(y, m, d, mm, off);
+      const sp = solarPosition(dt, lat, lon);
+      if (sp.altitude > 0){
+        const v = sunVec3D(THREEref, sp.azimuth, sp.altitude, R);
+        samples.push({ az:sp.azimuth, v });
+        if (sp.altitude > peak.alt) peak = { alt:sp.altitude, v };
+      }
+    }
+    const segs = splitOnAzJump(samples);
+    s.arcLine = [];
+    segs.forEach(seg => {
+      if (seg.length < 2) return;
+      const line = new THREEref.Line(
+        new THREEref.BufferGeometry().setFromPoints(seg),
+        new THREEref.LineBasicMaterial({ color:0xF5A623, transparent:true, opacity:0.65 })
+      );
+      s.scene.add(line); s.arcLine.push(line);
+    });
+
+    // Marcador do pico solar (círculo amarelo)
+    if (peak.v){
+      s.peakMarker.position.copy(peak.v); s.peakMarker.visible = true;
+      s.peakRing.position.copy(peak.v);
+      s.peakRing.lookAt(0,0,0); s.peakRing.visible = true;
+    } else {
+      s.peakMarker.visible = false; s.peakRing.visible = false;
+    }
+  }, [dateKey, lat, lon, utcOffsetSec]);
+
+  // Arco da janela de voo (azul) — fuso correto + quebra no zênite
+  useEffect(() => {
+    const s = S.current; if (!s || !s.scene) return;
+    const THREEref = THREE, R = s.R;
+    const [y,m,d] = dateKey.split("-").map(Number);
+    const off = utcOffsetSec ?? (-3*3600);
+
+    // limpa arcos e dots antigos
+    (s.fwArcs||[]).forEach(l => { s.scene.remove(l); l.geometry.dispose(); });
+    s.fwArcs = [];
+    s.fwDots.forEach(dt => { s.scene.remove(dt); dt.geometry.dispose(); });
+    s.fwDots = [];
+
+    // Coleta só o trecho DIURNO da janela (altitude > 0).
+    const samples = [];
+    for (let mm=fs; mm<=fe; mm+=2){
+      const dt = localMinToDate(y, m, d, mm, off);
+      const sp = solarPosition(dt, lat, lon);
+      if (sp.altitude > 0) samples.push({ az:sp.azimuth, v: sunVec3D(THREEref, sp.azimuth, sp.altitude, R*1.008) });
+    }
+    const segs = splitOnAzJump(samples);
+    segs.forEach(seg => {
+      if (seg.length < 2) return;
+      const line = new THREEref.Line(
+        new THREEref.BufferGeometry().setFromPoints(seg),
+        new THREEref.LineBasicMaterial({ color:0x3B82F6 })
+      );
+      s.scene.add(line); s.fwArcs.push(line);
+    });
+    // dots no primeiro e último ponto diurno
+    if (samples.length >= 2){
+      [samples[0].v, samples[samples.length-1].v].forEach(v => {
+        const dot = new THREEref.Mesh(new THREEref.SphereGeometry(0.22,16,16), new THREEref.MeshBasicMaterial({ color:0x60A5FA }));
+        dot.position.copy(v); s.scene.add(dot); s.fwDots.push(dot);
+      });
+    }
+  }, [fs, fe, dateKey, lat, lon, utcOffsetSec]);
+
+  // Atualiza posição do sol (muda com hora/data/local/fuso)
+  useEffect(() => {
+    const s = S.current; if (!s || !s.scene) return;
+    const THREEref = THREE, R = s.R;
+    const [y,m,d] = dateKey.split("-").map(Number);
+    const off = utcOffsetSec ?? (-3*3600);
+    const dt = localMinToDate(y, m, d, sunMin, off);
+    const sp = solarPosition(dt, lat, lon);
+    const pos = sunVec3D(THREEref, sp.azimuth, sp.altitude, R);
+    const above = sp.altitude > 0;
+
+    s.sunMesh.position.copy(pos); s.sunGlow.position.copy(pos);
+    s.sunMesh.visible = sp.altitude > -3; s.sunGlow.visible = above;
+    s.sunLight.position.copy(pos); s.sunLight.target.position.set(0,0,0);
+    s.sunLight.intensity = above ? 1.4 : 0.0;
+    s.hemi.intensity = above ? 0.5 : 0.15;
+    const warm = Math.max(0, 1 - sp.altitude/25);
+    s.sunMesh.material.color.setRGB(1, 0.83 - warm*0.25, 0.29 - warm*0.15);
+
+    if (s.azLine){ s.scene.remove(s.azLine); s.azLine.geometry.dispose(); s.azLine=null; }
+    if (above){
+      const gp = new THREEref.Vector3(pos.x, 0.02, pos.z);
+      s.azLine = new THREEref.Line(
+        new THREEref.BufferGeometry().setFromPoints([pos, gp]),
+        new THREEref.LineDashedMaterial({ color:0xF5A623, dashSize:0.4, gapSize:0.3, transparent:true, opacity:0.5 })
+      );
+      s.azLine.computeLineDistances(); s.scene.add(s.azLine);
+    }
+  }, [sunMin, dateKey, lat, lon, utcOffsetSec]);
+
+  return <div ref={mountRef} style={{ width:"100%", height:340, borderRadius:12, overflow:"hidden", background:"#080F1A" }}/>;
+}
+
+// ── App principal ──────────────────────────────────────────────────────────────
+function App() {
+  const [locName,     setLocName]     = useState("");
+  const [wx,          setWx]          = useState(null);
+  const [precip,      setPrecip]      = useState(null);
+  const [w80,         setW80]         = useState(null);
+  const [gust10,      setGust10]      = useState(null);
+  const [kp,          setKp]          = useState(null);
+  const [sr,          setSr]          = useState(null);
+  const [ss,          setSs]          = useState(null);
+  const [loading,     setLoading]     = useState(true);
+  const [error,       setError]       = useState(null);
+  const [now,         setNow]         = useState(new Date());
+  const [fs,          setFs]          = useState(8*60);
+  const [fe,          setFe]          = useState(17*60);
+  const [coords,      setCoords]      = useState({lat:-22.1209, lon:-51.3886});
+  const [sun3DMin,    setSun3DMin]    = useState(new Date().getHours()*60 + new Date().getMinutes());
+  const [deviceHead,  setDeviceHead]  = useState(0);
+  const [hasOrient,   setHasOrient]   = useState(false);
+  const [twilightMins, setTwilightMins] = useState(30);
+  const [windSource, setWindSource] = useState("openmeteo"); // "tomorrow" | "openmeteo"
+  const [v120Direct, setV120Direct] = useState(null);  // km/h — vento real 120m (Tomorrow)
+  const [g120Direct, setG120Direct] = useState(null);  // km/h — rajada real 120m (Tomorrow)
+  const [extra, setExtra] = useState(null);            // teto, orvalho, UV, pressão (Tomorrow)
+  const [windForecast, setWindForecast] = useState(null); // previsão horária vento 120m
+  const [kpForecast, setKpForecast] = useState(null);  // previsão Kp 3 dias (NOAA)
+  const [metar, setMetar] = useState(null);            // observação METAR oficial (aviationweather.gov)
+  const [metarErr, setMetarErr] = useState(null);      // motivo de falha do METAR (diagnóstico)
+  const [placeQuery, setPlaceQuery] = useState("");    // busca manual de cidade/ICAO
+  const [placeSearching, setPlaceSearching] = useState(false);
+  const [placeErr, setPlaceErr] = useState(null);
+  const [reloadKey, setReloadKey] = useState(0);       // força recarregar clima ao mudar local manual
+  const [utcOffsetSec, setUtcOffsetSec] = useState(-3*3600); // fuso do local-alvo (Open-Meteo)
+  const [aba, setAba] = useState("meteo");             // módulo ativo: meteo | espaco | radar
+  const espacoIframeRef = useRef(null);                // iframe do AirspaceMap
+  const radarIframeRef = useRef(null);                 // iframe do Radar
+
+  // Sincroniza o local com o módulo Radar (iframe) quando coords mudam
+  useEffect(() => {
+    const ifr = radarIframeRef.current;
+    if (aba === "radar" && ifr && ifr.contentWindow) {
+      ifr.contentWindow.postMessage(
+        { tipo: "setLocal", lat: coords.lat, lon: coords.lon },
+        "*"
+      );
+    }
+  }, [coords, aba]);
+  const [isDesktop, setIsDesktop] = useState(typeof window!=="undefined" && window.innerWidth >= 900);
+
+  // Detecta largura da tela para layout responsivo (dashboard no desktop)
+  useEffect(() => {
+    const onResize = () => setIsDesktop(window.innerWidth >= 900);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  // Sincroniza o local com o módulo Espaço Aéreo (iframe) quando coords mudam
+  useEffect(() => {
+    const ifr = espacoIframeRef.current;
+    if (aba === "espaco" && ifr && ifr.contentWindow) {
+      ifr.contentWindow.postMessage(
+        { tipo: "setLocal", lat: coords.lat, lon: coords.lon },
+        "*"
+      );
+    }
+  }, [coords, aba]);
+
+  // Relógio
+  useEffect(() => {
+    const id = setInterval(()=>setNow(new Date()), 30_000);
+    return ()=>clearInterval(id);
+  }, []);
+
+  // Orientação do dispositivo (bússola)
+  const startOrientation = () => {
+    const handler = (e) => {
+      setHasOrient(true);
+      if (e.webkitCompassHeading != null) {
+        setDeviceHead(e.webkitCompassHeading);          // iOS (true north)
+      } else if (e.absolute && e.alpha != null) {
+        setDeviceHead((360 - e.alpha + 360) % 360);    // Android absolute
+      } else if (e.alpha != null) {
+        setDeviceHead((360 - e.alpha + 360) % 360);    // Android fallback
+      }
+    };
+    if (typeof DeviceOrientationEvent !== "undefined" &&
+        typeof DeviceOrientationEvent.requestPermission === "function") {
+      // iOS 13+
+      DeviceOrientationEvent.requestPermission()
+        .then(perm => {
+          if (perm === "granted") {
+            window.addEventListener("deviceorientation", handler, true);
+          }
+        }).catch(console.error);
+    } else {
+      window.addEventListener("deviceorientationabsolute", handler, true);
+      window.addEventListener("deviceorientation", handler, true);
+    }
+  };
+
+  useEffect(() => {
+    startOrientation();
+    return () => {};
+  }, []);
+
+  // Dados meteorológicos
+  const fetchWeatherRef = useRef(null);
+  useEffect(() => {
+    const DEFAULT_LAT = -22.1209, DEFAULT_LON = -51.3886;
+    const DEFAULT_NAME = "Presidente Prudente, SP";
+
+    const fetchWeather = async (lat, lon, forcedName) => {
+      // Crepúsculo civil calculado astronomicamente para lat/lon do voo
+      const twMin = calcCivilTwilightOffset(new Date(), lat);
+      setTwilightMins(twMin);
+      setCoords({ lat, lon });
+      if (forcedName) setLocName(forcedName);
+
+      try {
+        // Geocodificação reversa
+        if (lat !== DEFAULT_LAT || lon !== DEFAULT_LON) {
+          const geo = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`,
+            { headers:{"Accept-Language":"pt-BR","User-Agent":"DroneWeatherApp/1.2"} }
+          ).then(r=>r.json());
+          const a = geo.address;
+          setLocName([a.city||a.town||a.village||a.county||a.municipality,a.state_code||a.state].filter(Boolean).join(", "));
+        }
+
+        // ── Tentativa 1: Tomorrow.io (fonte principal) ──────────────────────
+        // Fornece vento E rajada reais em 120m AGL (sem extrapolação)
+        let tomorrowOK = false;
+        if (TOMORROW_API_KEY) {
+          try {
+            const tmFields = "windSpeed,windGust,windDirection,cloudCeiling,dewPoint,uvIndex,pressureSurfaceLevel,visibility";
+            const tmUrl = "https://api.tomorrow.io/v4/timelines"
+              + `?location=${lat},${lon}`
+              + `&fields=${tmFields}`
+              + "&timesteps=current,1h"
+              + "&units=metric"
+              + "&altitudes=120"            // 120m AGL
+              + `&apikey=${TOMORROW_API_KEY}`;
+            const tm = await fetch(tmUrl).then(r => {
+              if (!r.ok) throw new Error("HTTP " + r.status);
+              return r.json();
+            });
+            const timelines = tm?.data?.timelines || [];
+            const curTl = timelines.find(t => t.timestep === "current") || timelines[0];
+            const hourlyTl = timelines.find(t => t.timestep === "1h");
+            const iv = curTl?.intervals?.[0]?.values;
+            if (iv && iv.windSpeed != null) {
+              // Tomorrow.io retorna m/s → converter para km/h
+              setV120Direct(iv.windSpeed * 3.6);
+              setG120Direct(iv.windGust != null ? iv.windGust * 3.6 : iv.windSpeed * 3.6);
+              if (iv.windDirection != null) {
+                setWx(prev => ({ ...(prev||{}), wind_direction_10m: iv.windDirection }));
+              }
+              // Campos extras (teto, orvalho, UV, pressão)
+              setExtra({
+                cloudCeiling: iv.cloudCeiling ?? null,      // metros
+                dewPoint:     iv.dewPoint ?? null,          // °C
+                uvIndex:      iv.uvIndex ?? null,
+                pressure:     iv.pressureSurfaceLevel ?? null, // hPa
+              });
+              // Previsão horária de vento 120m (próximas 12h)
+              if (hourlyTl?.intervals?.length) {
+                const series = hourlyTl.intervals.slice(0, 12).map(it => ({
+                  time:  parseLocal(it.startTime.slice(0,16)),
+                  wind:  it.values.windSpeed != null ? it.values.windSpeed * 3.6 : null,
+                  gust:  it.values.windGust  != null ? it.values.windGust  * 3.6 : null,
+                }));
+                setWindForecast(series);
+              }
+              setWindSource("tomorrow");
+              tomorrowOK = true;
+            }
+          } catch (e) {
+            // Falha/limite do Tomorrow → cai para Open-Meteo silenciosamente
+            console.warn("Tomorrow.io indisponível, usando Open-Meteo:", e.message);
+          }
+        }
+        if (!tomorrowOK) {
+          setWindSource("openmeteo");
+          setV120Direct(null);
+          setG120Direct(null);
+        }
+
+        // ── Open-Meteo (fallback + dados meteorológicos gerais) ─────────────
+        const q = new URLSearchParams({
+          latitude:lat, longitude:lon,
+          current:"temperature_2m,wind_speed_10m,wind_direction_10m,wind_gusts_10m,cloud_cover,visibility",
+          hourly:"precipitation_probability,wind_speed_80m,wind_direction_80m",
+          daily:"sunrise,sunset",
+          wind_speed_unit:"kmh",
+          timezone:"auto",
+          forecast_days:"1",
+        });
+        const data = await fetch(`https://api.open-meteo.com/v1/forecast?${q}`).then(r=>r.json());
+        setWx(data.current);
+        setGust10(data.current.wind_gusts_10m ?? null);
+        setUtcOffsetSec(data.utc_offset_seconds ?? (-3*3600)); // fuso do local-alvo
+
+        const srDate = parseLocal(data.daily.sunrise[0]);
+        const ssDate = parseLocal(data.daily.sunset[0]);
+        setSr(srDate); setSs(ssDate);
+        const srM = toMins(srDate), ssM = toMins(ssDate);
+        const pm  = Math.round((srM+ssM)/2);
+        setFs(Math.max(srM, pm-120));
+        setFe(Math.min(ssM, pm+120));
+
+        const curH = new Date().getHours();
+        const idx  = data.hourly.time.findIndex(t=>parseLocal(t).getHours()===curH);
+        if (idx>=0) {
+          setPrecip(data.hourly.precipitation_probability[idx]??0);
+          setW80({ speed:data.hourly.wind_speed_80m[idx], dir:data.hourly.wind_direction_80m[idx] });
+        }
+
+        // Índice Kp — NOAA Space Weather Prediction Center
+        // Formato atual (2026): array de OBJETOS {time_tag, Kp, a_running, station_count}
+        // Alguns formatos antigos vinham como array de arrays — tratamos os dois.
+        // Se o NOAA bloquear por CORS, tentamos um proxy público como fallback.
+        const KP_URL = "https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json";
+        const extractKp = (raw) => {
+          if (!Array.isArray(raw) || raw.length === 0) return null;
+          // Varre de trás p/ frente buscando o último Kp numérico válido
+          for (let i = raw.length - 1; i >= 0; i--) {
+            const row = raw[i];
+            let val = null;
+            if (row && typeof row === "object" && !Array.isArray(row)) {
+              val = parseFloat(row.Kp ?? row.kp ?? row.kp_index ?? row.estimated_kp);
+            } else if (Array.isArray(row)) {
+              // pula cabeçalho textual
+              if (i === 0 && isNaN(parseFloat(row[1]))) continue;
+              val = parseFloat(row[1]);
+            }
+            if (val != null && !isNaN(val)) return val;
+          }
+          return null;
+        };
+        try {
+          let kpVal = null;
+          try {
+            const kpRaw = await fetch(KP_URL).then(r => { if(!r.ok) throw new Error("HTTP "+r.status); return r.json(); });
+            kpVal = extractKp(kpRaw);
+          } catch (corsErr) {
+            // Fallback via proxy CORS (caso o NOAA bloqueie a origem do Netlify)
+            const proxied = "https://corsproxy.io/?url=" + encodeURIComponent(KP_URL);
+            const kpRaw2 = await fetch(proxied).then(r => r.json());
+            kpVal = extractKp(kpRaw2);
+          }
+          if (kpVal != null) setKp(kpVal);
+        } catch (e) {
+          console.warn("Kp indisponível:", e.message);
+        }
+
+        // Previsão Kp 3 dias — NOAA (array de objetos {time_tag, kp, observed})
+        const KPF_URL = "https://services.swpc.noaa.gov/products/noaa-planetary-k-index-forecast.json";
+        try {
+          let kpfRaw = null;
+          try {
+            kpfRaw = await fetch(KPF_URL).then(r => { if(!r.ok) throw new Error("HTTP "+r.status); return r.json(); });
+          } catch (_) {
+            const proxied = "https://corsproxy.io/?url=" + encodeURIComponent(KPF_URL);
+            kpfRaw = await fetch(proxied).then(r => r.json());
+          }
+          if (Array.isArray(kpfRaw)) {
+            const nowT = Date.now();
+            // Apenas registros futuros (previsão), próximos 3 dias
+            const fc = kpfRaw
+              .map(o => ({
+                t: new Date((o.time_tag||"").replace(" ","T")),
+                kp: parseFloat(o.kp ?? o.Kp),
+                observed: (o.observed||"").toLowerCase().includes("predict") || (o.observed||"").toLowerCase()==="estimated",
+              }))
+              .filter(o => !isNaN(o.kp) && o.t.getTime() >= nowT - 3*3600*1000)
+              .slice(0, 24); // 3 dias x 8 intervalos
+            if (fc.length) setKpForecast(fc);
+          }
+        } catch (e) {
+          console.warn("Previsão Kp indisponível:", e.message);
+        }
+
+      } catch (err) {
+        setError("Falha ao buscar dados: " + err.message);
+      }
+      setLoading(false);
+    };
+
+    fetchWeatherRef.current = fetchWeather;
+
+    // Na primeira carga: GPS. Em recargas manuais (reloadKey>0): usa coords já setadas.
+    if (reloadKey > 0) {
+      fetchWeather(coords.lat, coords.lon);
+      return;
+    }
+    if (!navigator.geolocation) {
+      setLocName(DEFAULT_NAME);
+      fetchWeather(DEFAULT_LAT, DEFAULT_LON);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      ({coords:{latitude:lat,longitude:lon}}) => fetchWeather(lat,lon),
+      () => { setLocName(DEFAULT_NAME); fetchWeather(DEFAULT_LAT, DEFAULT_LON); },
+      { timeout:8000 }
+    );
+  }, [reloadKey]);
+
+  // ── METAR: estação mais próxima da localização atual (auto) ─────────────────
+  useEffect(() => {
+    let cancel = false;
+    (async () => {
+      try {
+        setMetar(null); setMetarErr(null);
+        let m = await fetchNearestMetar(coords.lat, coords.lon);
+        if (!m && METAR_ICAO_FALLBACK) m = await fetchMetarByIcao(METAR_ICAO_FALLBACK);
+        if (cancel) return;
+        if (m) { setMetar(m); setMetarErr(null); }
+        else setMetarErr("nenhuma estação próxima com observação");
+      } catch (e) {
+        if (!cancel) setMetarErr((e.message||"").includes("Failed to fetch") ? "CORS/rede" : e.message);
+      }
+    })();
+    return () => { cancel = true; };
+  }, [coords.lat, coords.lon]);
+
+  // ── Busca manual de local (cidade ou ICAO) — reposiciona tudo ───────────────
+  const handlePlaceSearch = async () => {
+    const q = placeQuery.trim();
+    if (!q) return;
+    setPlaceSearching(true); setPlaceErr(null);
+    try {
+      let lat, lon, name;
+      // Heurística: 4 letras (A-Z) → tenta ICAO primeiro
+      const looksIcao = /^[A-Za-z]{4}$/.test(q);
+      if (looksIcao) {
+        const m = await fetchMetarByIcao(q.toUpperCase());
+        if (m && m.lat!=null) {
+          lat = m.lat; lon = m.lon; name = (m.name || q.toUpperCase());
+        }
+      }
+      // Senão (ou se ICAO falhou), geocodifica como cidade via Nominatim
+      if (lat == null) {
+        const geo = await fetch(
+          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&accept-language=pt-BR`,
+          { headers: { "Accept-Language": "pt-BR" } }
+        ).then(r => r.json());
+        if (geo && geo.length) {
+          lat = parseFloat(geo[0].lat); lon = parseFloat(geo[0].lon);
+          name = geo[0].display_name.split(",").slice(0,2).join(",").trim();
+        }
+      }
+      if (lat == null || isNaN(lat)) { setPlaceErr("Local não encontrado"); setPlaceSearching(false); return; }
+      // Aplica: muda coords + nome e força recarga de TUDO (clima, sol, METAR)
+      setCoords({ lat, lon });
+      setLocName(name || q);
+      setReloadKey(k => k + 1);
+      setPlaceQuery("");
+    } catch (e) {
+      setPlaceErr("Erro na busca");
+    }
+    setPlaceSearching(false);
+  };
+
+  // ── Derivados ──────────────────────────────────────────────────────────────
+  const v10   = wx?.wind_speed_10m    ?? 0;
+  const v80   = w80?.speed            ?? 0;
+  // Vento 120m: prioriza Tomorrow.io (medido); senão extrapola via Open-Meteo
+  const v120calc = v10 && v80 ? windAtHeight(v10, v80, 120) : null;
+  const g120calc = gust10 && v10 && v120calc ? gustAtHeight(gust10, v10, v120calc) : null;
+  const v120  = v120Direct != null ? v120Direct : v120calc;
+  const g120  = g120Direct != null ? g120Direct : g120calc;
+  const prc   = precip ?? 0;
+  const vis   = (wx?.visibility ?? 10000) / 1000;
+  const cld   = wx?.cloud_cover ?? 0;
+  const temp  = wx?.temperature_2m ?? 0;
+  const wDir  = wx?.wind_direction_10m ?? 0;
+
+  const wGrade  = gradeWindMs((v120 ?? v10) / 3.6);
+  const pGrade  = gradePrecip(prc);
+  const vGrade  = gradeVis(vis);
+  const cGrade  = gradeCloud(cld);
+  const tGrade  = temp>0&&temp<42 ? "good" : "warn";
+  const kpGrade = gradeKp(kp);
+  const statusKey = wx ? worstOf(wGrade, pGrade, vGrade) : "warn";
+  const banner = BANNER[statusKey];
+  const peakM  = sr&&ss ? Math.round((toMins(sr)+toMins(ss))/2) : null;
+
+  const kpInfo = {
+    good:"GNSS estável",
+    warn:"Perturbação leve",
+    bad: "GNSS instável",
+  };
+
+  // Estimativa de satélites GNSS visíveis (céu aberto) — degradada por Kp alto.
+  // Em condições normais, um receptor multiconstelação (GPS+GLONASS+Galileo+BeiDou)
+  // enxerga ~20-32 satélites. Tempestade geomagnética reduz o lock efetivo.
+  const satEstimate = (() => {
+    if (kp==null || isNaN(kp)) return null;
+    const base = 26;                       // média céu aberto multiconstelação
+    const penalty = Math.round(Math.max(0, kp - 3) * 2.5);
+    return Math.max(6, base - penalty);
+  })();
+  const satGrade = satEstimate==null ? "warn" : satEstimate >= 18 ? "good" : satEstimate >= 12 ? "warn" : "bad";
+
+  // ── Campos extras Tomorrow.io (teto, orvalho, UV, pressão) ──────────────────
+  const teto    = extra?.cloudCeiling ?? null;   // metros (base das nuvens)
+  const orvalho = extra?.dewPoint ?? null;        // °C
+  const uv      = extra?.uvIndex ?? null;
+  const pressao = extra?.pressure ?? null;        // hPa
+  const spread  = (orvalho!=null && temp!=null) ? (temp - orvalho) : null; // °C — risco de névoa
+
+  // CAVOK (Ceiling And Visibility OK) — termo aeronáutico (METAR):
+  //  • visibilidade ≥ 10 km
+  //  • sem nuvens abaixo de 1500 m (teto null = sem nuvens baixas) ou teto ≥ 1500 m
+  //  • sem precipitação significativa
+  const isCavok =
+    vis >= 10 &&
+    (teto == null || teto >= 1500) &&
+    prc < 20 &&
+    cld < 50;
+
+  // Teto: CAVOK ok; crítico se abaixo de 120m (limite legal de voo)
+  const tetoGrade = isCavok ? "good"
+    : teto == null ? "good"
+    : teto < 120 ? "bad"
+    : teto < 300 ? "warn"
+    : "good";
+  const tetoSub = isCavok ? "Céu livre p/ voo"
+    : teto == null ? "Sem nuvens baixas"
+    : teto < 120 ? "Abaixo de 120m!"
+    : teto < 300 ? "Atenção à subida"
+    : "Acima do limite RPA";
+  // Spread T-Td baixo (<2.5°C) → alta umidade, risco de névoa/condensação
+  const spreadGrade = spread==null ? "good"
+    : spread < 2.5 ? "warn"
+    : "good";
+  // UV: 0-5 ok, 6-7 atenção, 8+ alto (proteção do operador)
+  const uvGrade = uv==null ? "good"
+    : uv < 6 ? "good"
+    : uv < 8 ? "warn"
+    : "bad";
+  const uvInfo = uv==null ? "" : uv < 3 ? "Baixo" : uv < 6 ? "Moderado" : uv < 8 ? "Alto" : uv < 11 ? "Muito alto" : "Extremo";
+
+  return (
+    <div className={"dw-shell dw-"+aba} style={{minHeight:"100vh",background:"#080F1A",color:"#E2E8F0",maxWidth: (aba==="espaco"||aba==="radar") ? "100%" : 480,margin:"0 auto",paddingBottom:40,fontFamily:"Space Grotesk,system-ui,sans-serif"}}>
+
+      <div className="dw-topo">
+      {/* ── Header ── */}
+      <div style={{padding:"16px 16px 12px",display:"flex",alignItems:"center",gap:12,borderBottom:"1px solid #0F2035"}}>
+        <div style={{width:40,height:40,borderRadius:"50%",background:"#0D1F35",display:"flex",alignItems:"center",justifyContent:"center",fontSize:21,flexShrink:0}}>🛸</div>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontWeight:700,fontSize:16,letterSpacing:"-0.02em"}}>DroneWeather</div>
+          <div style={{fontSize:12,color:"#475569",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+            {loading ? "Localizando…" : locName||"Localização atual"}
+          </div>
+          {!loading && wx && (
+            <div style={{
+              display:"inline-flex", alignItems:"center", gap:4, marginTop:3,
+              fontSize:9, padding:"1px 7px", borderRadius:10,
+              background: windSource==="tomorrow" ? "#14532D55" : "#1E3A5F55",
+              color:      windSource==="tomorrow" ? "#4ADE80"   : "#60A5FA",
+            }}>
+              <span style={{
+                width:5, height:5, borderRadius:"50%",
+                background: windSource==="tomorrow" ? "#22C55E" : "#3B82F6",
+              }}/>
+              {windSource==="tomorrow" ? "Tomorrow.io" : "Open-Meteo"}
+            </div>
+          )}
+        </div>
+        <div style={{textAlign:"right",flexShrink:0}}>
+          <div style={{fontFamily:"JetBrains Mono",fontSize:16,fontWeight:700,color:"#60A5FA"}}>
+            {now.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}
+          </div>
+          <div style={{fontSize:11,color:"#475569"}}>
+            {now.toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"short"})}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Busca de local (cidade ou ICAO) ── */}
+      <div style={{padding:"10px 16px 0",display:"flex",gap:8,alignItems:"center"}}>
+        <div style={{flex:1,display:"flex",alignItems:"center",gap:6,background:"#0D1F35",border:"1px solid #1A2336",borderRadius:10,padding:"8px 12px"}}>
+          <span style={{fontSize:13,opacity:0.6}}>🔍</span>
+          <input
+            type="text"
+            value={placeQuery}
+            onChange={(e)=>setPlaceQuery(e.target.value)}
+            onKeyDown={(e)=>{ if(e.key==="Enter") handlePlaceSearch(); }}
+            placeholder="Cidade ou ICAO (ex: Inocência MS, SBDN)"
+            style={{flex:1,background:"transparent",border:"none",color:"#E2E8F0",fontFamily:"Space Grotesk",fontSize:13,outline:"none",minWidth:0}}
+          />
+          {placeQuery && (
+            <span onClick={()=>{setPlaceQuery("");setPlaceErr(null);}} style={{cursor:"pointer",color:"#475569",fontSize:14}}>✕</span>
+          )}
+        </div>
+        <button onClick={handlePlaceSearch} disabled={placeSearching} style={{
+          border:"none",borderRadius:10,background:placeSearching?"#1E3A5F":"#3B82F6",
+          color:"white",fontFamily:"Space Grotesk",fontSize:12,fontWeight:600,
+          padding:"9px 14px",cursor:placeSearching?"default":"pointer",whiteSpace:"nowrap"}}>
+          {placeSearching ? "..." : "Ir"}
+        </button>
+        <button onClick={()=>{ setPlaceErr(null); setLocName("Localizando…");
+          if(navigator.geolocation) navigator.geolocation.getCurrentPosition(
+            ({coords:{latitude,longitude}})=>{ setCoords({lat:latitude,lon:longitude}); setLocName(""); setReloadKey(k=>k+1); },
+            ()=>{ setPlaceErr("GPS negado"); }, {timeout:8000});
+        }} title="Usar minha localização" style={{
+          border:"1px solid #1A2336",borderRadius:10,background:"#0D1F35",
+          color:"#60A5FA",fontSize:14,padding:"9px 11px",cursor:"pointer"}}>
+          📍
+        </button>
+      </div>
+      {placeErr && (
+        <div style={{padding:"6px 16px 0",color:"#F87171",fontSize:11}}>⚠️ {placeErr}</div>
+      )}
+
+      {/* ── Abas de módulos ── */}
+      <div style={{display:"flex",gap:6,padding:"12px 16px 4px"}}>
+        {[
+          {id:"meteo",  label:"Meteorologia", icon:"🌤️"},
+          {id:"janela", label:"Janela de Voo", icon:"☀️"},
+          {id:"espaco", label:"Espaço Aéreo", icon:"🛩️"},
+          {id:"radar",  label:"Radar",        icon:"🌧️"},
+        ].map(t=>(
+          <button key={t.id} onClick={()=>setAba(t.id)} style={{
+            flex:1, border:"none", borderRadius:10, cursor:"pointer",
+            fontFamily:"Space Grotesk", fontSize:11, fontWeight:600,
+            padding:"9px 4px", lineHeight:1.3,
+            background: aba===t.id ? "#1E3A5F" : "#0D1F35",
+            color:      aba===t.id ? "#60A5FA" : "#475569",
+            border:     aba===t.id ? "1px solid #3B82F6" : "1px solid #1A2336",
+            transition:"all .15s",
+          }}>
+            <div style={{fontSize:15}}>{t.icon}</div>{t.label}
+          </button>
+        ))}
+      </div>
+      </div>{/* fim dw-topo */}
+
+      {/* ── Aba: Espaço Aéreo (AirspaceMap via iframe) ── */}
+      {aba==="espaco" && (
+        <div style={{padding:"8px 0 0"}}>
+          <iframe
+            ref={espacoIframeRef}
+            src={`https://airspace-decea.netlify.app/?lat=${coords.lat}&lon=${coords.lon}`}
+            title="Espaço Aéreo DECEA"
+            style={{width:"100%",height:"calc(100vh - 180px)",minHeight:480,border:"none",display:"block"}}
+            allow="geolocation"
+          />
+          <div style={{textAlign:"center",padding:"8px 16px",color:"#334155",fontSize:9,lineHeight:1.6}}>
+            AirspaceMap · DECEA/GEOAISWEB · OurAirports · ADS-B airplanes.live
+          </div>
+        </div>
+      )}
+
+      {/* ── Aba: Radar (em breve) ── */}
+      {aba==="radar" && (
+        <div style={{padding:"8px 0 0"}}>
+          <iframe
+            ref={radarIframeRef}
+            src={`https://radar-drone.netlify.app/?lat=${coords.lat}&lon=${coords.lon}`}
+            title="Radar Meteorológico"
+            style={{width:"100%",height:"calc(100vh - 180px)",minHeight:480,border:"none",display:"block"}}
+            allow="geolocation"
+          />
+          <div style={{textAlign:"center",padding:"8px 16px",color:"#334155",fontSize:9,lineHeight:1.6}}>
+            Radar de precipitação · RainViewer
+          </div>
+        </div>
+      )}
+
+      {/* ── Loading / Erro (gerais, independem de aba) ── */}
+      {loading&&(
+        <div style={{padding:"56px 20px",textAlign:"center",color:"#475569"}}>
+          <div style={{fontSize:48}}>🛰️</div>
+          <div style={{marginTop:12,fontSize:13}}>Obtendo dados meteorológicos…</div>
+        </div>
+      )}
+
+      {/* ── Erro ── */}
+      {!loading&&error&&(
+        <div style={{margin:"16px 16px 0",padding:"14px 16px",background:"#450A0A",borderRadius:12,color:"#FCA5A5",borderLeft:"3px solid #EF4444",fontSize:13}}>
+          ⚠️ {error}
+        </div>
+      )}
+
+      {!loading&&wx&&(<>
+
+      {aba==="meteo" && (
+        <div className="meteo-stack">
+          {/* Banner */}
+          <div style={{margin:"12px 16px 0",background:banner.bg,borderRadius:12,padding:"14px 16px",textAlign:"center"}}>
+            <div style={{fontWeight:700,fontSize:15}}>{banner.icon} {banner.text}</div>
+            <div style={{fontSize:11,color:"rgba(255,255,255,.45)",marginTop:3}}>
+              Agora · {now.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}
+            </div>
+          </div>
+
+          {/* ── Bússola + Vento ── */}
+          <div style={{margin:"12px 16px 0",background:"#0D1F35",borderRadius:14,padding:"14px 16px"}}>
+            <div style={{fontSize:11,color:"#475569",textTransform:"uppercase",letterSpacing:"0.1em",fontWeight:600,marginBottom:12}}>
+              🧭 Direção e Velocidade do Vento
+            </div>
+            <div style={{display:"flex",gap:16,alignItems:"center"}}>
+              <WindCompass
+                windFromDeg={wDir}
+                v120={v120}
+                deviceHeading={deviceHead}
+                hasOrientation={hasOrient}
+                onRequestPerm={startOrientation}
+              />
+              <WindLevels
+                v120={v120} gust120={g120}
+                windFromDeg={wDir}
+              />
+            </div>
+
+          </div>
+
+          {/* Previsão horária de vento 120m (Tomorrow.io) */}
+          {windForecast && windForecast.length > 0 && (
+            <div style={{ margin:"12px 16px 0", background:"#0D1F35", borderRadius:14, padding:"14px 16px" }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
+                <span style={{ fontSize:11, color:"#475569", textTransform:"uppercase", letterSpacing:"0.1em", fontWeight:600 }}>
+                  📈 Previsão de Vento 120m
+                </span>
+                <span style={{ fontSize:9, color:"#475569" }}>próximas 12h</span>
+              </div>
+              <WindForecastChart data={windForecast}/>
+              <div style={{ display:"flex", gap:12, justifyContent:"center", marginTop:6, flexWrap:"wrap" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+                  <div style={{ width:18, height:3, borderRadius:2, background:"#64748B" }}/>
+                  <span style={{ color:"#64748B", fontSize:9 }}>Constante (sólido)</span>
+                </div>
+                <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+                  <div style={{ width:18, height:3, borderRadius:2, background:"#64748B", opacity:0.6,
+                    backgroundImage:"repeating-linear-gradient(90deg,#64748B 0 3px,transparent 3px 5px)" }}/>
+                  <span style={{ color:"#64748B", fontSize:9 }}>Rajada (tracejado)</span>
+                </div>
+                <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                  {[["#22C55E","≤10"],["#F97316","10-12"],["#EF4444","≥12 m/s"]].map(([c,l])=>(
+                    <div key={l} style={{ display:"flex", alignItems:"center", gap:3 }}>
+                      <div style={{ width:8, height:8, borderRadius:"50%", background:c }}/>
+                      <span style={{ color:"#64748B", fontSize:8 }}>{l}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Cards meteorológicos */}
+          <div style={{margin:"12px 16px 0",display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+            <WxCard icon="🌧️" label="Precipitação" value={prc}              unit="%" grade={pGrade}/>
+            <WxCard icon="👁️"  label="Visibilidade" value={vis.toFixed(1)}   unit="km" grade={vGrade}/>
+            <WxCard icon="☁️"  label="Nuvens"        value={cld}              unit="%" grade={cGrade}/>
+            <WxCard icon="🌡️" label="Temperatura"  value={Math.round(temp)} unit="°C" grade={tGrade}/>
+            {/* Novos cards (Tomorrow.io) */}
+            <WxCard icon="🌥️" label="Teto de Nuvens"
+              value={isCavok ? "CAVOK" : (teto!=null ? Math.round(teto) : "—")}
+              unit={isCavok || teto==null ? "" : "m"}
+              grade={tetoGrade}
+              sub={tetoSub} subLabel={isCavok ? "Aviação" : "Base"}/>
+            {orvalho!=null && (
+              <WxCard icon="💧" label="Ponto Orvalho" value={Math.round(orvalho)} unit="°C"
+                grade={spreadGrade}
+                sub={`Spread ${spread!=null?spread.toFixed(1):"—"}°C`} subLabel="Névoa"/>
+            )}
+            {uv!=null && (
+              <WxCard icon="🔆" label="Índice UV" value={Math.round(uv)} unit=""
+                grade={uvGrade}
+                sub={uvInfo} subLabel="Operador"/>
+            )}
+            {pressao!=null && (
+              <WxCard icon="🎚️" label="Pressão" value={Math.round(pressao)} unit="hPa"
+                grade="good"
+                sub="Calibração baro" subLabel="Nível sup."/>
+            )}
+          </div>
+
+          {/* Índice Kp + Previsão 3 dias */}
+          <div style={{margin:"12px 16px 0",background:"#0D1F35",borderRadius:14,padding:"14px 16px",borderLeft:`3px solid ${CL[kpGrade].color}`}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+              <div>
+                <div style={{display:"flex",alignItems:"center",gap:6}}>
+                  <span style={{fontSize:18}}>🌌</span>
+                  <span style={{color:"#475569",fontSize:10,textTransform:"uppercase",letterSpacing:"0.07em"}}>Índice Kp</span>
+                </div>
+                <div style={{color:CL[kpGrade].color,fontFamily:"JetBrains Mono",fontSize:28,fontWeight:700,lineHeight:1.1,marginTop:4}}>
+                  {(kp!=null && !isNaN(kp)) ? kp.toFixed(2) : "—"}
+                </div>
+                <div style={{color:"#475569",fontSize:10,marginTop:1}}>
+                  GNSS: <span style={{color:CL[kpGrade].color}}>{(kp!=null && !isNaN(kp)) ? kpInfo[kpGrade] : "Aguardando"}</span>
+                </div>
+              </div>
+              <span style={{fontSize:8,fontWeight:700,letterSpacing:"0.04em",background:CL[kpGrade].bg+"44",color:CL[kpGrade].color,padding:"2px 8px",borderRadius:20}}>
+                {CL[kpGrade].tag}
+              </span>
+            </div>
+
+            {/* Previsão Kp 3 dias */}
+            {kpForecast && kpForecast.length > 0 && (
+              <div style={{marginTop:12,paddingTop:12,borderTop:"1px solid #0F2035"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:2}}>
+                  <span style={{color:"#475569",fontSize:9,textTransform:"uppercase",letterSpacing:"0.06em"}}>Previsão 3 dias</span>
+                  <div style={{display:"flex",gap:8}}>
+                    <span style={{color:"#64748B",fontSize:8}}>● obs</span>
+                    <span style={{color:"#64748B",fontSize:8,opacity:0.55}}>● prev</span>
+                  </div>
+                </div>
+                <KpForecastBars data={kpForecast}/>
+              </div>
+            )}
+          </div>
+
+          {/* Satélites GNSS (estimativa) */}
+          <div style={{margin:"12px 16px 0",display:"grid",gridTemplateColumns:"1fr",gap:10}}>
+            <WxCard icon="🛰️" label="Satélites GNSS"
+              value={satEstimate!=null ? `~${satEstimate}` : "—"} unit=""
+              grade={satGrade}
+              sub={satEstimate!=null ? "Estimativa céu aberto (multiconstelação, degradada por Kp)" : "Aguardando Kp"}
+              subLabel="Visíveis"/>
+          </div>
+
+          {/* Observação Oficial METAR */}
+          {metar && (
+            <div style={{margin:"12px 16px 0",background:"#0D1F35",borderRadius:14,padding:"14px 16px",borderLeft:"3px solid #0EA5E9"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                <span style={{fontSize:11,color:"#475569",textTransform:"uppercase",letterSpacing:"0.1em",fontWeight:600}}>
+                  🛬 METAR Oficial · {metar.icaoId || "—"}
+                </span>
+                {(() => {
+                  const age = metarAgeMin(metar);
+                  return <span style={{fontSize:9,color:age!=null&&age<75?"#22C55E":"#F59E0B"}}>
+                    {age!=null ? `há ${age} min` : "—"}{metar._distKm!=null?` · ${metar._distKm} km`:""}
+                  </span>;
+                })()}
+              </div>
+
+              {/* CAVOK badge */}
+              {metarIsCavok(metar) && (
+                <div style={{marginBottom:10,padding:"8px 12px",background:"#14532D",borderRadius:10,textAlign:"center"}}>
+                  <span style={{color:"#4ADE80",fontWeight:700,fontSize:13,letterSpacing:"0.05em"}}>✅ CAVOK</span>
+                  <span style={{color:"rgba(255,255,255,0.5)",fontSize:10,marginLeft:8}}>teto e visibilidade OK</span>
+                </div>
+              )}
+
+              {/* Grid de campos decodificados */}
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px 12px"}}>
+                {[
+                  ["💨 Vento", metar.wdir!=null ? `${Math.round((metar.wspd||0)*KT_TO_KMH)} km/h ${metarWindDir(metar.wdir)}` : "calmo"],
+                  ["🌡️ Temp", metar.temp!=null ? `${Math.round(metar.temp)}°C` : "—"],
+                  ["💧 Orvalho", metar.dewp!=null ? `${Math.round(metar.dewp)}°C` : "—"],
+                  ["🎚️ QNH", metar.altim!=null ? `${Math.round(metar.altim)} hPa` : "—"],
+                  ["👁️ Visibilidade", metarVisib(metar.visib)],
+                  ["☁️ Nuvens", (!metar.clouds||metar.clouds.length===0||metar.clouds[0].cover==="CLR"||metar.clouds[0].cover==="SKC") ? "Limpo" : metar.clouds.map(c=>c.cover+(c.base?` ${Math.round(c.base*0.3048)}m`:"")).join(", ")],
+                ].map(([k,v]) => (
+                  <div key={k} style={{display:"flex",flexDirection:"column",gap:1}}>
+                    <span style={{color:"#475569",fontSize:9}}>{k}</span>
+                    <span style={{color:"#CBD5E1",fontFamily:"JetBrains Mono",fontSize:12,fontWeight:600}}>{v}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* METAR bruto */}
+              {metar.rawOb && (
+                <div style={{marginTop:10,padding:"8px 10px",background:"#080F1A",borderRadius:8,
+                  color:"#5BA9F5",fontFamily:"JetBrains Mono",fontSize:10,lineHeight:1.5,wordBreak:"break-word"}}>
+                  {metar.rawOb}
+                </div>
+              )}
+
+              <div style={{marginTop:8,color:"#334155",fontSize:9,lineHeight:1.5}}>
+                {metar.name ? metar.name + ". " : ""}Observação oficial (fonte para decisão de voo). Vento a 10m · QNH ao nível do mar. A estação METAR mais próxima pode estar a alguns km do ponto de voo.
+              </div>
+            </div>
+          )}
+
+          {/* Painel de diagnóstico (retrátil) */}
+          <details style={{margin:"16px 16px 0",background:"#0A1422",borderRadius:10,padding:"10px 14px",border:"1px solid #0F2035"}}>
+            <summary style={{color:"#475569",fontSize:11,cursor:"pointer",userSelect:"none",letterSpacing:"0.05em"}}>
+              🔧 Diagnóstico de dados (Tomorrow.io)
+            </summary>
+            <div style={{marginTop:10,display:"grid",gridTemplateColumns:"1fr 1fr",gap:"4px 12px"}}>
+              {[
+                ["Fonte vento", windSource],
+                ["Vento 120m", v120Direct!=null ? `${(v120Direct/3.6).toFixed(1)} m/s` : "null"],
+                ["Rajada 120m", g120Direct!=null ? `${(g120Direct/3.6).toFixed(1)} m/s` : "null"],
+                ["Teto nuvens", teto!=null ? `${Math.round(teto)} m` : "null (sem teto)"],
+                ["Ponto orvalho", orvalho!=null ? `${orvalho.toFixed(1)} °C` : "null"],
+                ["Índice UV", uv!=null ? uv.toFixed(1) : "null"],
+                ["Pressão", pressao!=null ? `${Math.round(pressao)} hPa` : "null"],
+                ["Cobertura nuvens", `${cld}%`],
+                ["Prev. horária", windForecast ? `${windForecast.length} pts` : "null"],
+                ["Kp atual", (kp!=null&&!isNaN(kp)) ? kp.toFixed(2) : "null"],
+                ["Prev. Kp 3d", kpForecast ? `${kpForecast.length} pts` : "null"],
+                ["METAR " + (metar?.icaoId || "auto"), metar ? (metarAgeMin(metar)+" min"+(metar._distKm!=null?` (${metar._distKm}km)`:"")) : ("null — "+(metarErr||"?"))],
+              ].map(([k,v]) => (
+                <div key={k} style={{display:"flex",justifyContent:"space-between",gap:8}}>
+                  <span style={{color:"#475569",fontSize:10}}>{k}</span>
+                  <span style={{
+                    color: String(v).startsWith("null") ? "#7F1D1D" : "#22C55E",
+                    fontFamily:"JetBrains Mono", fontSize:10, textAlign:"right",
+                  }}>{v}</span>
+                </div>
+              ))}
+            </div>
+            <div style={{marginTop:8,color:"#334155",fontSize:9,lineHeight:1.5}}>
+              "null" no teto de nuvens é normal em céu limpo — a API só reporta teto quando há nuvens baixas. O card só aparece quando há valor.
+            </div>
+          </details>
+
+          {/* Rodapé */}
+          <div className="span-full" style={{textAlign:"center",padding:"20px 16px 8px",color:"#1E3A5F",fontSize:10,lineHeight:1.8}}>
+            {windSource==="tomorrow" ? "Tomorrow.io" : "Open-Meteo"} · METAR/AWC · NOAA SWPC · v3.0<br/>
+            {windSource==="tomorrow"
+              ? "Vento e rajada medidos em 120m AGL"
+              : "Vento 120m AGL estimado por perfil logarítmico"}
+            <br/>Regulamentação ANAC RBAC-100
+          </div>
+
+        </div>
+      )}
+
+      {aba==="janela" && (
+        <div className="janela-wrap">
+          <div>
+          {/* Trajetória Solar + Janela de Voo (unificados) */}
+          <div style={{margin:"12px 16px 0",background:"#0D1F35",borderRadius:14,padding:"14px 12px 12px"}}>
+            <div style={{display:"flex",justifyContent:"space-between",padding:"0 4px",marginBottom:8}}>
+              <span style={{fontSize:11,color:"#475569",textTransform:"uppercase",letterSpacing:"0.1em",fontWeight:600}}>☀️ Trajetória Solar &amp; Janela de Voo</span>
+              {sr&&ss&&(() => {
+                const dur = toMins(ss) - toMins(sr);
+                return <span style={{fontSize:11,fontFamily:"JetBrains Mono",color:"#60A5FA"}}>
+                  ☀️ {Math.floor(dur/60)}h{dur%60?` ${dur%60}m`:""} de luz
+                </span>;
+              })()}
+            </div>
+            <SunArc sr={sr} ss={ss} now={now} fs={fs} fe={fe}/>
+            <div style={{display:"flex",gap:14,justifyContent:"center",marginTop:8,marginBottom:14,flexWrap:"wrap"}}>
+              {[["#F59E0B","Padrão ±2h"],["#3B82F6","Sua janela"],["#FCD34D","Pico solar"]].map(([c,l])=>(
+                <div key={l} style={{display:"flex",alignItems:"center",gap:5}}>
+                  <div style={{width:20,height:4,borderRadius:2,background:c,opacity:l==="Padrão ±2h"?0.7:1}}/>
+                  <span style={{color:"#64748B",fontSize:9}}>{l}</span>
+                </div>
+              ))}
+            </div>
+            <div style={{borderTop:"1px solid #0F2035",paddingTop:14}}>
+              <div style={{fontSize:11,color:"#475569",textTransform:"uppercase",letterSpacing:"0.1em",fontWeight:600,marginBottom:12}}>✈️ Janela de Voo</div>
+              <FlightTimeline sr={sr} ss={ss} fs={fs} fe={fe} now={now} peakM={peakM} twilightMins={twilightMins}
+                onChange={(s,e)=>{ setFs(s); setFe(e); }}
+                onReset={()=>{if(sr&&ss){setFs(toMins(sr));setFe(toMins(ss));}}}/>
+            </div>
+          </div>
+
+          {/* Domo Solar 3D */}
+          <div style={{margin:"12px 16px 0",background:"#0D1F35",borderRadius:14,padding:"14px 16px"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+              <span style={{fontSize:11,color:"#475569",textTransform:"uppercase",letterSpacing:"0.1em",fontWeight:600}}>
+                🌄 Sol 3D &amp; Sombra
+              </span>
+              <button onClick={()=>setSun3DMin(now.getHours()*60+now.getMinutes())} style={{
+                border:"1px solid #1E3A5F",borderRadius:20,background:"transparent",color:"#60A5FA",
+                fontSize:10,padding:"3px 10px",cursor:"pointer",fontFamily:"Space Grotesk"}}>
+                ☀️ Agora
+              </button>
+            </div>
+            {(() => {
+              const dk = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`;
+              const [yy,mm,dd] = dk.split("-").map(Number);
+              const d3 = localMinToDate(yy, mm, dd, sun3DMin, utcOffsetSec);
+              const sp3 = solarPosition(d3, coords.lat, coords.lon);
+              return (
+                <div style={{display:"flex",gap:14,marginBottom:8,fontSize:11,fontFamily:"JetBrains Mono"}}>
+                  <span style={{color:"#94A3B8"}}>Sol às <span style={{color:"#F5A623"}}>{toHM(sun3DMin)}</span></span>
+                  <span style={{color:"#475569"}}>az <span style={{color:"#94A3B8"}}>{sp3.azimuth.toFixed(0)}°</span></span>
+                  <span style={{color:"#475569"}}>alt <span style={{color:"#94A3B8"}}>{sp3.altitude.toFixed(0)}°</span></span>
+                </div>
+              );
+            })()}
+            <SunDome3D
+              lat={coords.lat} lon={coords.lon}
+              dateKey={`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`}
+              sunMin={sun3DMin} fs={fs} fe={fe} utcOffsetSec={utcOffsetSec}/>
+
+            {/* Barra própria de hora do sol (controla só o 3D) */}
+            <div style={{marginTop:12}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:2}}>
+                <span style={{fontSize:9,color:"#475569",textTransform:"uppercase",letterSpacing:"0.1em"}}>Posição do sol</span>
+                <span style={{fontFamily:"JetBrains Mono",fontSize:14,fontWeight:700,color:"#F5A623"}}>{toHM(sun3DMin)}</span>
+              </div>
+              <input type="range" min="0" max="1439" step="5" value={sun3DMin}
+                onChange={(e)=>setSun3DMin(+e.target.value)}
+                style={{width:"100%",height:30,cursor:"pointer",accentColor:"#F5A623"}}/>
+              <div style={{display:"flex",justifyContent:"space-between"}}>
+                {[0,6,12,18,24].map(h=>(<span key={h} style={{color:"#1E3A5F",fontSize:9,fontFamily:"JetBrains Mono"}}>{String(h).padStart(2,"0")}h</span>))}
+              </div>
+            </div>
+
+            <div style={{marginTop:8,color:"#334155",fontSize:9,lineHeight:1.5}}>
+              Use a barra acima para mover o sol e ver a sombra em qualquer hora. Gire com o dedo, pinça p/ zoom.
+              Arco azul = janela de voo; amarelo = trajetória do dia; tracejado = trópicos e equador.
+            </div>
+            <div style={{display:"flex",gap:14,justifyContent:"center",marginTop:8,flexWrap:"wrap"}}>
+              {[["#F5A623","Trajetória do dia"],["#3B82F6","Janela de voo"],["#FCD34D","Pico solar"],["#93A4C8","Trópicos / Equador"]].map(([c,l])=>(
+                <div key={l} style={{display:"flex",alignItems:"center",gap:5}}>
+                  <div style={{width:16,height:3,borderRadius:2,background:c}}/>
+                  <span style={{color:"#64748B",fontSize:9}}>{l}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          </div>
+        </div>
+      )}
+
+      </>)}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
 </script>
 </body>
 </html>
