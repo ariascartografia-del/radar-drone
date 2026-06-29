@@ -116,6 +116,8 @@
   <div class="controls">
     <div class="lbl">Camadas</div>
     <label class="layer-toggle"><input type="checkbox" id="tgPrecip" checked/>🌧️ Precipitação (radar)</label>
+    <label class="layer-toggle"><input type="checkbox" id="tgClouds"/>☁️ Nuvens</label>
+    <label class="layer-toggle"><input type="checkbox" id="tgTemp"/>🌡️ Temperatura</label>
     <label class="layer-toggle"><input type="checkbox" id="tgLocal" checked/>📍 Seu local</label>
     <div class="opacity-row">
       <div class="lbl">Opacidade da chuva</div>
@@ -156,6 +158,10 @@
 let userLat=-22.1209, userLon=-51.3886;   // Presidente Prudente (fallback)
 const RV_API = 'https://api.rainviewer.com/public/weather-maps.json';
 
+// CHAVE OpenWeatherMap — cole a sua aqui (gratuita em openweathermap.org).
+// A chave demora ~2h para ativar após criada.
+const OWM_KEY = d6d4bd3fc7921e759bcc5b6634dca6c5;
+
 // ── Mapa base ──────────────────────────────────────────────────────
 const map = L.map('map',{zoomControl:true,attributionControl:true}).setView([userLat,userLon],7);
 
@@ -169,6 +175,13 @@ tiles.osm.addTo(map);
 
 // Marcador do usuário
 let userMarker = L.circleMarker([userLat,userLon],{radius:7,color:'#fff',weight:2,fillColor:'#3B82F6',fillOpacity:1}).addTo(map);
+
+// ── Camadas OpenWeatherMap (nuvens, temperatura) ───────────────────
+const owmTem = !OWM_KEY || OWM_KEY==='COLE_SUA_CHAVE_AQUI' ? false : true;
+const owmLayers = {
+  clouds: owmTem ? L.tileLayer(`https://tile.openweathermap.org/map/clouds_new/{z}/{x}/{y}.png?appid=${OWM_KEY}`,{opacity:0.7,zIndex:4,maxZoom:18}) : null,
+  temp:   owmTem ? L.tileLayer(`https://tile.openweathermap.org/map/temp_new/{z}/{x}/{y}.png?appid=${OWM_KEY}`,{opacity:0.6,zIndex:3,maxZoom:18}) : null,
+};
 
 // ── Radar de precipitação (RainViewer) ─────────────────────────────
 let radarFrames=[];      // lista de {time, path}
@@ -338,6 +351,14 @@ document.getElementById('gpsBtn').addEventListener('click',()=>{
 
 // ── Toggles ────────────────────────────────────────────────────────
 document.getElementById('tgPrecip').addEventListener('change',()=>mostrarFrame(frameIdx));
+document.getElementById('tgClouds').addEventListener('change',e=>{
+  if(!owmLayers.clouds){ alert('Configure a chave do OpenWeatherMap no código para usar esta camada.'); e.target.checked=false; return; }
+  if(e.target.checked) owmLayers.clouds.addTo(map); else map.removeLayer(owmLayers.clouds);
+});
+document.getElementById('tgTemp').addEventListener('change',e=>{
+  if(!owmLayers.temp){ alert('Configure a chave do OpenWeatherMap no código para usar esta camada.'); e.target.checked=false; return; }
+  if(e.target.checked) owmLayers.temp.addTo(map); else map.removeLayer(owmLayers.temp);
+});
 document.getElementById('tgLocal').addEventListener('change',e=>{
   if(e.target.checked) userMarker.addTo(map); else map.removeLayer(userMarker);
 });
