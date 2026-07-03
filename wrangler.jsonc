@@ -1,0 +1,9 @@
+{
+  // Radar (RainViewer) — deploy via Cloudflare Workers ("npx wrangler deploy").
+  // Site 100% estático: sem worker de código, apenas os arquivos (assets).
+  "name": "radar-drone",
+  "compatibility_date": "2026-01-01",
+  "assets": {
+    "directory": "."
+  }
+}
