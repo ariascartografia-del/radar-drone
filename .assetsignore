@@ -1,0 +1,9 @@
+# Não publicar como arquivos estáticos (wrangler assets)
+.git
+.wrangler
+.assetsignore
+wrangler.jsonc
+worker.js
+node_modules
+*.md
+*.zip
