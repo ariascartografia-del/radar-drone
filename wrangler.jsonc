@@ -1,9 +1,13 @@
 {
   // Radar (RainViewer) — deploy via Cloudflare Workers ("npx wrangler deploy").
-  // Site 100% estático: sem worker de código, apenas os arquivos (assets).
+  // O worker serve os arquivos estáticos e faz o proxy das camadas do
+  // OpenWeatherMap (a chave fica no servidor):
+  //   npx wrangler secret put OWM_KEY
   "name": "radar-drone",
+  "main": "worker.js",
   "compatibility_date": "2026-01-01",
   "assets": {
-    "directory": "."
+    "directory": ".",
+    "binding": "ASSETS"
   }
 }

@@ -2,9 +2,10 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Radar Meteorológico · DroneWeather</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet"/>
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
   html,body{height:100%;width:100%;font-family:'Space Grotesk',system-ui,sans-serif;background:#080F1A}
@@ -158,9 +159,17 @@
 let userLat=-22.1209, userLon=-51.3886;   // Presidente Prudente (fallback)
 const RV_API = 'https://api.rainviewer.com/public/weather-maps.json';
 
-// CHAVE OpenWeatherMap — gratuita em openweathermap.org.
-// A chave demora ~2h para ativar após criada.
-const OWM_KEY = '9ef26a49ef66fc2b9de300a7e7bdfcb1';
+// Nuvens/temperatura (OpenWeatherMap) passam pelo worker: a chave fica no
+// servidor (variável OWM_KEY no Cloudflare), nunca neste arquivo.
+const OWM_PROXY = '/api/owm';
+
+// O RainViewer só fornece radar até o zoom 7 (acima disso devolve um aviso
+// "Zoom Level Not Supported"). Acima de 7 o Leaflet amplia o tile do zoom 7.
+const RV_MAX_ZOOM_NATIVO = 7;
+
+// Escapa texto externo (nomes do OpenStreetMap) antes de inserir em HTML
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c =>
+  ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
 
 // ── Mapa base ──────────────────────────────────────────────────────
 const map = L.map('map',{zoomControl:true,attributionControl:true}).setView([userLat,userLon],7);
@@ -176,12 +185,18 @@ tiles.osm.addTo(map);
 // Marcador do usuário
 let userMarker = L.circleMarker([userLat,userLon],{radius:7,color:'#fff',weight:2,fillColor:'#3B82F6',fillOpacity:1}).addTo(map);
 
-// ── Camadas OpenWeatherMap (nuvens, temperatura) ───────────────────
-const owmTem = !OWM_KEY || OWM_KEY==='COLE_SUA_CHAVE_AQUI' ? false : true;
+// ── Camadas OpenWeatherMap (nuvens, temperatura) via worker ────────
 const owmLayers = {
-  clouds: owmTem ? L.tileLayer(`https://tile.openweathermap.org/map/clouds_new/{z}/{x}/{y}.png?appid=${OWM_KEY}`,{opacity:0.7,zIndex:4,maxZoom:18}) : null,
-  temp:   owmTem ? L.tileLayer(`https://tile.openweathermap.org/map/temp_new/{z}/{x}/{y}.png?appid=${OWM_KEY}`,{opacity:0.6,zIndex:3,maxZoom:18}) : null,
+  clouds: L.tileLayer(`${OWM_PROXY}/clouds_new/{z}/{x}/{y}.png`,{opacity:0.7,zIndex:4,maxZoom:18,maxNativeZoom:10,attribution:'© OpenWeatherMap'}),
+  temp:   L.tileLayer(`${OWM_PROXY}/temp_new/{z}/{x}/{y}.png`,{opacity:0.6,zIndex:3,maxZoom:18,maxNativeZoom:10,attribution:'© OpenWeatherMap'}),
 };
+let owmAtivo=null;   // null = ainda não verificado
+async function owmDisponivel(){
+  if(owmAtivo!==null) return owmAtivo;
+  try{ const r=await fetch(`${OWM_PROXY}/status`); owmAtivo=r.ok && (await r.json()).ativo===true; }
+  catch(e){ owmAtivo=false; }
+  return owmAtivo;
+}
 
 // ── Radar de precipitação (RainViewer) ─────────────────────────────
 let radarFrames=[];      // lista de {time, path}
@@ -200,7 +215,7 @@ function urlDoFrame(f){
 function camadaDoFrame(i){
   if(radarLayers[i]) return radarLayers[i];
   const f=radarFrames[i];
-  const layer=L.tileLayer(urlDoFrame(f),{opacity:0,zIndex:5,maxZoom:18,tileSize:256});
+  const layer=L.tileLayer(urlDoFrame(f),{opacity:0,zIndex:5,maxZoom:18,maxNativeZoom:RV_MAX_ZOOM_NATIVO,tileSize:256,attribution:'Radar © RainViewer'});
   radarLayers[i]=layer;
   layer.addTo(map);
   return layer;
@@ -239,8 +254,13 @@ async function carregarRadar(){
     const host=j.host||'';
     const past=(j.radar&&j.radar.past)||[];
     const nowcast=(j.radar&&j.radar.nowcast)||[];
-    radarFrames=past.concat(nowcast).map(f=>({time:f.time,path:f.path,host}));
-    if(!radarFrames.length){ setAlert('Sem dados de radar no momento.'); return; }
+    const novos=past.concat(nowcast).map(f=>({time:f.time,path:f.path,host}));
+    if(!novos.length){ setAlert('Sem dados de radar no momento.'); return; }
+    // Remove do mapa as camadas da lista anterior (antes ficavam presas no mapa,
+    // com o último quadro visível por cima dos novos)
+    Object.values(radarLayers).forEach(l=>map.removeLayer(l));
+    radarLayers={};
+    radarFrames=novos;
     const sl=document.getElementById('tlSlider');
     sl.max=radarFrames.length-1;
     sl.value=radarFrames.length-1;
@@ -272,10 +292,22 @@ function setAlert(msg){
   if(!msg){ el.classList.add('hide'); return; }
   el.textContent=msg; el.classList.remove('hide');
 }
+// Dentro do DroneWeather o módulo pode estar oculto (aba fechada): com o mapa
+// sem tamanho o Leaflet não consegue centralizar. Guarda o pedido e aplica
+// quando o mapa voltar a ter tamanho.
+let centroPendente=null;
 function recenter(z){
-  map.setView([userLat,userLon], z||map.getZoom());
   userMarker.setLatLng([userLat,userLon]);
+  const tam=map.getSize();
+  if(!tam.x || !tam.y){ centroPendente={z}; return; }
+  centroPendente=null;
+  // Sem animação: requestAnimationFrame fica pausado em iframe oculto
+  map.setView([userLat,userLon], z||map.getZoom(), {animate:false});
 }
+new ResizeObserver(()=>{
+  map.invalidateSize();
+  if(centroPendente) recenter(centroPendente.z);
+}).observe(map.getContainer());
 
 // ── Busca (Nominatim) com autocomplete e dedupe ────────────────────
 const suggestEl=document.getElementById('suggest');
@@ -301,7 +333,7 @@ function renderSugestoes(lista){
   suggestEl.innerHTML=unica.map((it,i)=>{
     const nome=it.display_name.split(',')[0];
     const resto=it.display_name.split(',').slice(1,4).join(',').trim();
-    return `<div class="suggest-item" data-i="${i}">${nome}<span class="sub">${resto}</span></div>`;
+    return `<div class="suggest-item" data-i="${i}">${esc(nome)}<span class="sub">${esc(resto)}</span></div>`;
   }).join('');
   suggestEl.classList.add('open');
   suggestEl.querySelectorAll('.suggest-item').forEach(el=>{
@@ -315,11 +347,30 @@ function escolherSugestao(i){
   suggestEl.classList.remove('open');
   recenter(9);
 }
+// Graus decimais ou G°M'S", com sinal ou hemisfério (N/S, E/W, L/O)
+function parseDMS(str){
+  if(str==null) return null;
+  let s=String(str).trim().toUpperCase().replace(/,/g,'.');
+  if(!s || /[^0-9.\-+\s°º'′’"″D NSEWLO]/.test(s)) return null;
+  let sinal=1;
+  const hem=s.match(/[NSEWLO]/g);
+  if(hem){ if(hem.length>1) return null; if('SWO'.includes(hem[0])) sinal=-1; s=s.replace(/[NSEWLO]/g,' '); }
+  if(/-/.test(s)){ sinal=-1; s=s.replace(/-/g,' '); }
+  const nums=s.match(/\d+(?:\.\d+)?/g);
+  if(!nums || nums.length>3) return null;
+  const [g,m=0,sec=0]=nums.map(Number);
+  if(m>=60 || sec>=60) return null;
+  return sinal*(g+m/60+sec/3600);
+}
 function parseCoords(q){
-  const m=q.trim().replace(',',' ').split(/\s+/);
-  if(m.length>=2){
-    const lat=parseFloat(m[0]), lon=parseFloat(m[1]);
-    if(Number.isFinite(lat)&&Number.isFinite(lon)&&Math.abs(lat)<=90&&Math.abs(lon)<=180) return{lat,lon};
+  const t=q.trim();
+  const ok=(lat,lon)=>lat!==null&&lon!==null&&Math.abs(lat)<=90&&Math.abs(lon)<=180;
+  const partes=t.split(/\s*[;,]\s*(?=[-+]?\d)/);
+  if(partes.length===2){ const lat=parseDMS(partes[0]), lon=parseDMS(partes[1]); if(ok(lat,lon)) return {lat,lon}; }
+  const p=t.split(/\s+/);
+  if(p.length>=2 && p.length%2===0){
+    const h=p.length/2, lat=parseDMS(p.slice(0,h).join(' ')), lon=parseDMS(p.slice(h).join(' '));
+    if(ok(lat,lon)) return {lat,lon};
   }
   return null;
 }
@@ -351,13 +402,17 @@ document.getElementById('gpsBtn').addEventListener('click',()=>{
 
 // ── Toggles ────────────────────────────────────────────────────────
 document.getElementById('tgPrecip').addEventListener('change',()=>mostrarFrame(frameIdx));
-document.getElementById('tgClouds').addEventListener('change',e=>{
-  if(!owmLayers.clouds){ alert('Configure a chave do OpenWeatherMap no código para usar esta camada.'); e.target.checked=false; return; }
-  if(e.target.checked) owmLayers.clouds.addTo(map); else map.removeLayer(owmLayers.clouds);
-});
-document.getElementById('tgTemp').addEventListener('change',e=>{
-  if(!owmLayers.temp){ alert('Configure a chave do OpenWeatherMap no código para usar esta camada.'); e.target.checked=false; return; }
-  if(e.target.checked) owmLayers.temp.addTo(map); else map.removeLayer(owmLayers.temp);
+[['tgClouds','clouds'],['tgTemp','temp']].forEach(([id,k])=>{
+  document.getElementById(id).addEventListener('change',async e=>{
+    if(!e.target.checked){ map.removeLayer(owmLayers[k]); return; }
+    if(!(await owmDisponivel())){
+      e.target.checked=false;
+      setAlert('Camada indisponível: configure a variável OWM_KEY no Cloudflare.');
+      setTimeout(()=>setAlert(''),5000);
+      return;
+    }
+    owmLayers[k].addTo(map);
+  });
 });
 document.getElementById('tgLocal').addEventListener('change',e=>{
   if(e.target.checked) userMarker.addTo(map); else map.removeLayer(userMarker);
@@ -398,17 +453,18 @@ if(Number.isFinite(_qlat)&&Number.isFinite(_qlon)){
     ()=>{},{timeout:8000});
 }
 window.addEventListener('message',ev=>{
+  // Só aceita mensagens da janela que embute este módulo (o DroneWeather)
+  if(window.parent===window || ev.source!==window.parent) return;
   const d=ev.data;
   if(d&&d.tipo==='setLocal'&&Number.isFinite(d.lat)&&Number.isFinite(d.lon)){
     userLat=d.lat; userLon=d.lon; recenter(8);
-    setTimeout(()=>map.invalidateSize(),100);
   }
 });
 
 // ── Init ───────────────────────────────────────────────────────────
 carregarRadar();
 // Atualiza os frames a cada 5 min (RainViewer atualiza nesse intervalo)
-setInterval(()=>{ radarLayers={}; carregarRadar(); }, 5*60*1000);
+setInterval(carregarRadar, 5*60*1000);
 
 // Garante que o Leaflet recalcule o tamanho do mapa após o iframe ter dimensões
 // (sem isso, dentro de um iframe o mapa pode renderizar em branco/altura zero).
