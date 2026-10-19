@@ -33,7 +33,10 @@
   .btn{border:none;border-radius:9px;background:#3B82F6;color:#fff;font-family:inherit;
     font-size:12px;font-weight:600;padding:8px 11px;cursor:pointer;white-space:nowrap;flex-shrink:0;
     box-shadow:0 4px 16px rgba(0,0,0,.5)}
-  .btn.ghost{background:rgba(13,19,34,.95);border:1px solid #2A3A5C;color:#94A3B8;font-size:14px;padding:8px 8px}
+  .btn.ghost{background:rgba(13,19,34,.95);border:1px solid #2A3A5C;color:#94A3B8;font-size:14px;padding:8px 8px;
+    display:inline-flex;align-items:center;justify-content:center;line-height:0}
+  .btn svg,.tl-play svg{display:block}
+  .sw{width:10px;height:10px;border-radius:2px;flex-shrink:0;display:inline-block}
   .btn.ghost:hover{color:#E8ECF4}
 
   /* ── Painel de camadas ── */
@@ -81,9 +84,18 @@
     box-shadow:0 6px 28px rgba(0,0,0,.6);max-width:55%;transition:.2s;
     background:#1E3A5F;color:#93C5FD;border:1px solid #3B82F655;pointer-events:none}
   .alert.hide{opacity:0;pointer-events:none}
+  /* Botão "Camadas" (celular): abre/fecha o painel para liberar o mapa */
+  .camadas-btn{position:absolute;left:12px;top:86px;z-index:1001;display:none;
+    background:rgba(13,19,34,.95);border:1px solid #2A3A5C;color:#94A3B8;border-radius:9px;
+    padding:7px;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.5);line-height:0}
+  .camadas-btn.on{color:#60A5FA;border-color:#3B82F6}
+  /* Dentro do DroneWeather a busca é a do app (topo) — esconde a deste módulo */
+  body.embutido .topbar{display:none}
   @media (max-width:640px){
-    .alert{top:12px;left:12px;right:auto;transform:none;max-width:60%;font-size:11px;text-align:left}
-    .controls{top:auto;bottom:120px;left:12px}
+    .alert{top:12px;left:56px;right:12px;transform:none;max-width:none;font-size:11px;text-align:left}
+    .controls{top:132px;bottom:auto;left:12px;display:none}
+    .controls.aberto{display:block}
+    .camadas-btn{display:block}
     .precip-legend{bottom:120px}
   }
 
@@ -103,23 +115,26 @@
     <div class="inner">
       <div class="search-wrap">
         <div class="search">
-          <span style="opacity:.45;flex-shrink:0;font-size:13px">🔍</span>
+          <span style="opacity:.55;flex-shrink:0;line-height:0;color:#94A3B8"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg></span>
           <input id="q" type="text" autocomplete="off" placeholder="Cidade ou coordenadas"/>
         </div>
         <div class="suggest" id="suggest"></div>
       </div>
       <button class="btn" id="goBtn">Ir</button>
-      <button class="btn ghost" id="gpsBtn" title="Localização GPS">📍</button>
+      <button class="btn ghost" id="gpsBtn" title="Usar minha localização (GPS)" aria-label="Usar minha localização"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.2" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></button>
     </div>
   </div>
 
+  <!-- Botão de camadas (celular) -->
+  <button class="camadas-btn" id="camadasBtn" title="Camadas e mapa de fundo" aria-label="Camadas"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 2.5 8 12 13l9.5-5z"/><path d="M2.5 12.5 12 17.5l9.5-5"/><path d="M2.5 16.5 12 21.5l9.5-5"/></svg></button>
+
   <!-- Painel de camadas -->
-  <div class="controls">
+  <div class="controls" id="controls">
     <div class="lbl">Camadas</div>
-    <label class="layer-toggle"><input type="checkbox" id="tgPrecip" checked/>🌧️ Precipitação (radar)</label>
-    <label class="layer-toggle"><input type="checkbox" id="tgClouds"/>☁️ Nuvens</label>
-    <label class="layer-toggle"><input type="checkbox" id="tgTemp"/>🌡️ Temperatura</label>
-    <label class="layer-toggle"><input type="checkbox" id="tgLocal" checked/>📍 Seu local</label>
+    <label class="layer-toggle"><input type="checkbox" id="tgPrecip" checked/><span class="sw" style="background:linear-gradient(90deg,#5A7BC4,#C44A8F,#FFE14D)"></span>Precipitação (radar)</label>
+    <label class="layer-toggle"><input type="checkbox" id="tgClouds"/><span class="sw" style="background:#CBD5E1"></span>Nuvens</label>
+    <label class="layer-toggle"><input type="checkbox" id="tgTemp"/><span class="sw" style="background:linear-gradient(90deg,#3B82F6,#F59E0B,#EF4444)"></span>Temperatura</label>
+    <label class="layer-toggle"><input type="checkbox" id="tgLocal" checked/><span class="sw" style="background:#3B82F6;border-radius:50%;border:2px solid #fff"></span>Seu local</label>
     <div class="opacity-row">
       <div class="lbl">Opacidade da chuva</div>
       <input type="range" id="opacity" min="0" max="100" value="80"/>
@@ -127,15 +142,15 @@
     <div class="sep"></div>
     <div class="lbl">Mapa de fundo</div>
     <div class="map-btns">
-      <button class="map-btn active" id="btnOsm">🗺<br>Mapa</button>
-      <button class="map-btn" id="btnSat">🛰<br>Satélite</button>
-      <button class="map-btn" id="btnDark">🌑<br>Escuro</button>
+      <button class="map-btn active" id="btnOsm">Mapa</button>
+      <button class="map-btn" id="btnSat">Satélite</button>
+      <button class="map-btn" id="btnDark">Escuro</button>
     </div>
   </div>
 
   <!-- Legenda de precipitação -->
   <div class="precip-legend">
-    Precip
+    Chuva
     <div class="ends"><span>Forte</span><span>Fraca</span></div>
     <div class="bar"></div>
   </div>
@@ -143,7 +158,7 @@
   <!-- Linha do tempo -->
   <div class="timeline">
     <div class="timeline-top">
-      <button class="tl-play" id="playBtn" title="Reproduzir">▶</button>
+      <button class="tl-play" id="playBtn" title="Reproduzir animação" aria-label="Reproduzir"></button>
       <div class="tl-time"><span id="tlTime">—</span><span class="rel" id="tlRel"></span></div>
     </div>
     <input type="range" class="tl-slider" id="tlSlider" min="0" max="0" value="0"/>
@@ -272,9 +287,13 @@ async function carregarRadar(){
 }
 
 // ── Animação play/pause ────────────────────────────────────────────
+const ICO_PLAY='<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l13-7.5z"/></svg>';
+const ICO_PAUSA='<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 4.5h4.5v15H6zM13.5 4.5H18v15h-4.5z"/></svg>';
+document.getElementById('playBtn').innerHTML=ICO_PLAY;
 function togglePlay(){
   playing=!playing;
-  document.getElementById('playBtn').textContent=playing?'⏸':'▶';
+  document.getElementById('playBtn').innerHTML=playing?ICO_PAUSA:ICO_PLAY;
+  document.getElementById('playBtn').title=playing?'Pausar animação':'Reproduzir animação';
   if(playing){
     playTimer=setInterval(()=>{
       let prox=frameIdx+1;
@@ -442,7 +461,16 @@ document.getElementById('playBtn').addEventListener('click',togglePlay);
   });
 });
 
+// ── Camadas no celular: botão abre/fecha o painel ─────────────────
+(function(){
+  const b=document.getElementById('camadasBtn'), c=document.getElementById('controls');
+  b.addEventListener('click',()=>{ const ab=c.classList.toggle('aberto'); b.classList.toggle('on',ab); });
+  map.on('click',()=>{ c.classList.remove('aberto'); b.classList.remove('on'); });
+})();
+
 // ── Integração com o shell (DroneWeather) ──────────────────────────
+// Dentro do DroneWeather (iframe) a busca é a do app: esconde a deste módulo
+if(window.parent!==window) document.body.classList.add('embutido');
 const _params=new URLSearchParams(location.search);
 const _qlat=parseFloat(_params.get('lat')), _qlon=parseFloat(_params.get('lon'));
 if(Number.isFinite(_qlat)&&Number.isFinite(_qlon)){
